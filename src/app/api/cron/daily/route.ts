@@ -2,6 +2,7 @@ import { query } from "@/lib/db";
 import { notifyInAppOnce, sendEmail } from "@/lib/notifications";
 import { ok, apiError } from "@/lib/http";
 import { assertCronAuth } from "@/lib/cron";
+import { refreshHealth } from "@/lib/health";
 
 export const dynamic = "force-dynamic";
 
@@ -92,12 +93,15 @@ export async function POST(request: Request) {
       }
     }
 
+    const healthUpdated = await refreshHealth();
+
     return ok({
       sessionsPruned: pruned.rowCount ?? 0,
       overdue: overdue.length,
       dueSoon: dueSoon.length,
       renewals: renewals.length,
       slaRisk: sla.length,
+      healthUpdated,
     });
   } catch (e) {
     return apiError(e);

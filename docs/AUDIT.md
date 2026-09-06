@@ -82,7 +82,7 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 | M3 | `/api/documents/[id]/download` does `Response.redirect(d.url)` for non-`local:` URLs. No INSERT path creates remote URLs yet, but the column allows them — validate scheme/host before ever redirecting (SSRF/open-redirect defense-in-depth). |
 | M4 | ✅ `cron/daily` now routes every reminder through `notifyInAppOnce` (20h dedup window); due-soon emails are queued, not re-sent inline. |
 | M5 | ✅ `updated_at` triggers on every table with the column (migration 0002). |
-| M6 | `health_score` is a static column (default 100), never computed. The brief wants an explainable algorithm. |
+| M6 | ✅ `lib/health.ts` — explainable score from overdue invoices, urgent tickets, ticket frequency, SLA breaches, late projects, inactivity, payment timeliness, renewals; returns weighted `factors[]` with the *why*. `GET /api/clients/[id]/health`, recomputed nightly. |
 | M7 | No pagination — every list route is a hard `LIMIT 250/500` and the client renders all rows. Won't scale past a few hundred records. |
 | M8 | Money is JS `number` end to end. `calculateInvoice` now rounds every step; other paths (dashboard sums, `paid_amount`) rely on Postgres `numeric`, which is fine, but the boundary is inconsistent. |
 | M9 | ✅ `ticketMessageSchema` caps `billableMinutes` at 24h. |
@@ -129,9 +129,9 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 | Notifications center | **Missing** | Rows are written; no unified center, no per-user preferences. |
 | Automation builder (WHEN/IF/DO) | **Missing** | `automation_rules` table exists; no engine, no UI. |
 | Documents | Partial | Upload/download/delete with auth. No S3 abstraction, no versioning, weak type validation. |
-| Client portal | Partial | `CLIENT` role sees scoped data. Needs its own shell, polish, and isolation tests. |
+| Client portal | Partial | `CLIENT` role sees scoped data + own pulse/health. Still needs its own shell (not the admin workspace) and polish. |
 | Reports | 🔧 v1 | `/api/reports/revenue` (6-month billed vs collected, MRR/ARR, collection rate) + `/api/reports/ar` + support quality, all with CSV. Reportes page rebuilt. Missing: revenue-by-client, margin-by-project, sales cycle, renewals. |
-| Executive dashboard / Pulse / Next Best Action | **Missing** | Dashboard shows 8 KPIs; no prioritized action feed. |
+| Executive dashboard / Pulse / Next Best Action | ✅ v1 | `lib/pulse.ts` + `GET /api/pulse` — prioritised feed (overdue invoices, SLA risk, renewals ≤14d, stale proposals, late projects, at-risk clients) with RD$ at stake, sorted by (priority, impact); shown on the dashboard, each item jumps to its module. |
 | Global search (Cmd-K) | **Missing** | Was only in the deleted mock. |
 | Security (MFA, rate limiting, headers, audit UI) | Partial | Headers + login rate limiting added here. No MFA, no audit UI. |
 | Audit log | Partial | Written for most mutations; no filterable UI, no diff view. |
