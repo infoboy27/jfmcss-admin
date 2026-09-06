@@ -1,0 +1,30 @@
+# Production overlay for the JFMCSS single-host deployment.
+#
+#   docker compose -p jfmcss-admin -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# It removes the published app port (Traefik reaches the container over the
+# shared edge network instead) and registers the HTTPS route + certificate.
+# Set EDGE_NETWORK and CONTROL_HOST in .env for a different host.
+services:
+  db:
+    ports: !reset []
+
+  app:
+    # No host port: only Traefik on the edge network can reach the app.
+    ports: !reset []
+    networks:
+      - default
+      - edge
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${EDGE_NETWORK:-winu-bot-signal-network}"
+      - "traefik.http.routers.jfmcss-control.rule=Host(`${CONTROL_HOST:-control.jfmcss.com}`)"
+      - "traefik.http.routers.jfmcss-control.entrypoints=websecure"
+      - "traefik.http.routers.jfmcss-control.tls=true"
+      - "traefik.http.routers.jfmcss-control.tls.certresolver=cloudflare"
+      - "traefik.http.services.jfmcss-control.loadbalancer.server.port=3000"
+
+networks:
+  edge:
+    external: true
+    name: ${EDGE_NETWORK:-winu-bot-signal-network}

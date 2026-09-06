@@ -24,7 +24,9 @@ Operations OS for JFMCSS: CRM + sales + projects + fiscal billing + collections 
 
 ```bash
 cp .env.example .env
-# Change BOOTSTRAP_ADMIN_PASSWORD before starting.
+# REQUIRED before first boot: POSTGRES_PASSWORD, BOOTSTRAP_ADMIN_PASSWORD, CRON_SECRET
+#   openssl rand -hex 24   # POSTGRES_PASSWORD
+#   openssl rand -hex 32   # CRON_SECRET
 docker compose up --build
 ```
 
@@ -33,12 +35,35 @@ Open http://localhost:3000 and sign in with the bootstrap credentials. The first
 Without Docker:
 
 ```bash
-npm install
+npm ci
 createdb jfmcss
 export DATABASE_URL='postgresql://...'
 npm run db:init
 npm run dev
 ```
+
+## Quality gates
+
+```bash
+npm run lint        # eslint (eslint-config-next)
+npm test            # vitest unit tests
+npm run build       # production build (also regenerates route types)
+npm run typecheck   # tsc --noEmit (run after build)
+```
+
+CI runs all four plus `npm audit --audit-level=high` on every push and PR.
+
+## Production deploy (single host + Traefik)
+
+The `docker-compose.prod.yml` overlay drops the published app port and routes
+`CONTROL_HOST` through a shared Traefik edge network with an ACME certificate:
+
+```bash
+docker compose -p jfmcss-admin \
+  -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Health probes: `GET /api/health` (liveness), `GET /api/health/ready` (DB + schema).
 
 ## Daily automation
 
@@ -62,6 +87,7 @@ curl -X POST https://control.example.com/api/cron/daily \
 5. Configure an authorized DGII/e-CF integration before enabling `ECF_ENABLED`.
 6. Schedule `/api/cron/daily` with `CRON_SECRET`.
 7. Put the app behind HTTPS and restrict database access to the app network.
+8. Review [`docs/AUDIT.md`](docs/AUDIT.md) for the current hardening status and open items.
 
 ## Main API surface
 
