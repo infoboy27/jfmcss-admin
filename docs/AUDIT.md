@@ -118,8 +118,8 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 | Proposals / quotes | ✅ v1 | Schema, branded PDF, tokenised public accept/reject page (`/p/[token]`), one-tx conversion → project + opportunity WON + optional initial invoice. Milestone editor is minimal; no proposal versioning yet. |
 | Projects & tasks | Partial | Projects + tasks + margin math. No team, no time tracking, no file tab, no milestones. |
 | Recurring services | ✅ v1 | an asset with `auto_invoice=true` is billed each cycle by `/api/cron/recurring` — idempotent via a unique `(asset_id, period_start)` invoice, real NCF, client email. |
-| Dominican billing / NCF / e-CF | Partial | Sequence allocation + NCF on issue + e-CF adapter stub. No credit notes, no sequence-exhaustion alerts, no e-CF XML. |
-| Invoice / proposal / receipt PDFs | Partial | Invoice PDF only, single-page, WinAnsi fonts. No receipt / credit note / statement templates. |
+| Dominican billing / NCF / e-CF | Partial | Sequence allocation + NCF on issue + e-CF adapter stub + ✅ credit notes (E34/B04). No sequence-exhaustion alerts, no e-CF XML. |
+| Invoice / proposal / receipt PDFs | Partial | ✅ invoice + ✅ proposal + ✅ credit-note PDFs (shared template, dd/mm/yyyy). No receipt / statement templates. WinAnsi fonts. |
 | Payments / AR / aging | Partial | Payment registration + balance recompute. No aging report, no collections cadence, no receipt PDF. |
 | Support / Help Desk / SLA | Partial | Tickets + threads + `sla_due_at` + billable minutes. No first-response SLA, no 50/75/90/100% alerts, no escalation, no CSAT. |
 | Billable support → invoice | **Missing** | Minutes are recorded; nothing rolls them into an invoice. |
@@ -147,19 +147,21 @@ error handler, race-safe ticket/project numbering, Docker standalone + non-root,
 env-driven compose, invoice-math extraction + tests, dead-code removal.
 Deployed to `https://control.jfmcss.com` (Traefik + ACME).
 
-**Phase 1 — foundations**
-✅ versioned migrations · ✅ standard API envelope (`{data}` / `{error:{code,message}}`,
-`ok()`/`fail()` in `lib/http`, all 30 routes + 5 frontend callers) · ✅ `Origin` CSRF check ·
-✅ pool error handler · ✅ lock ticket/project numbering · ✅ `updated_at` triggers ·
-✅ outbound timeouts · 🔧 Zod validation (`lib/schema` + `parseBody`, wired into invoice
-& payment routes; remaining routes pending).
-Open: Zod on the rest of the routes · centralized client-scope helper + isolation test
-suite · notification outbox (async) + session pruning · storage interface.
+**Phase 1 — foundations ✅**
+✅ versioned migrations · ✅ standard API envelope (all routes + 5 frontend callers) ·
+✅ Zod validation (`lib/schema` + `parseBody`, every mutation route) · ✅ `Origin` CSRF
+check · ✅ pool error handler · ✅ race-safe ticket/project numbering · ✅ `updated_at`
+triggers · ✅ outbound timeouts · ✅ centralized client-scope helper (`lib/scope`) +
+tests · ✅ notification outbox (`/api/cron/notifications`, backoff, `FOR UPDATE SKIP
+LOCKED`) + session pruning · ✅ DB-backed integration suite (fiscal concurrency,
+recurring idempotency, proposal conversion, payment reconciliation) in CI.
+Open: storage interface (S3/MinIO) · query-layer default-scoping.
 
-**Phase 2 — revenue core**
-Proposals (schema, PDF, secure accept/reject link, convert → opportunity WON →
-project → optional deposit invoice) · recurring services + idempotent monthly
-invoice generation · credit notes · receipt/statement PDFs · AR aging + collections.
+**Phase 2 — revenue core (in progress)**
+✅ Proposals (schema, PDF, tokenised public accept/reject, one-tx conversion →
+project + opportunity WON + optional deposit invoice) · ✅ recurring services +
+idempotent cycle billing · ✅ credit notes (E34/B04, full/partial, VOID hardening).
+Open: receipt/statement PDFs · AR aging + collections cadence · billable-time → invoice.
 
 **Phase 3 — service core**
 SLA engine (first-response + resolution targets, 50/75/90/100 % alerts,
