@@ -10,7 +10,7 @@
     "db:init": "psql \"$DATABASE_URL\" -f db/init.sql"
   },
   "dependencies": {
-    "next": "16.2.7",
+    "next": "16.3.4",
     "nodemailer": "^7.0.6",
     "pdf-lib": "^1.17.1",
     "pg": "^8.16.3",
