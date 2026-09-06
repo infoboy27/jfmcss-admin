@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 export { text, optionalText, numberValue, dateValue } from "./validate";
+export { ApiError, apiFail } from "./errors";
+import { ApiError } from "./errors";
 
 /**
  * Standard API envelope.
@@ -16,24 +18,8 @@ export function ok<T>(data: T, init?: number | ResponseInit) {
   return NextResponse.json({ data }, responseInit);
 }
 
-export class ApiError extends Error {
-  constructor(
-    public readonly code: string,
-    message: string,
-    public readonly status = 400,
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
-
 export function fail(code: string, message: string, status = 400, headers?: HeadersInit) {
   return NextResponse.json({ error: { code, message } }, { status, headers });
-}
-
-/** Throwable form — use inside helpers where returning a Response is awkward. */
-export function apiFail(code: string, message: string, status = 400): never {
-  throw new ApiError(code, message, status);
 }
 
 const PG_ERROR_MAP: Record<string, { code: string; message: string; status: number }> = {

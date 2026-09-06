@@ -1,4 +1,4 @@
-import { ApiError } from "./http";
+import { ApiError } from "./errors";
 
 /**
  * Guards a cron endpoint with the shared bearer secret. Throws 401 on mismatch;

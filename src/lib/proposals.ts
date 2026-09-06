@@ -1,6 +1,6 @@
 import type { PoolClient } from "pg";
 import { tx, nextHumanNumber } from "./db";
-import { ApiError } from "./http";
+import { ApiError } from "./errors";
 import { calculateInvoice } from "./billing";
 import { allocateFiscalNumber } from "./fiscal";
 

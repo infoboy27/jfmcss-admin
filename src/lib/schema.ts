@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ApiError } from "./http";
+import { ApiError } from "./errors";
 
 /**
  * Zod schemas for request bodies. TypeScript only checks the shape the code
