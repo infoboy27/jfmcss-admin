@@ -58,12 +58,12 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 
 | # | Finding | Status |
 |---|---------|--------|
-| H1 | **No CSRF / Origin defense.** JSON routes are largely protected by `SameSite=lax` + non-simple content type, but `/api/documents` POST accepts `multipart/form-data`, which an auto-submitting cross-site form can send with the victim's cookie. | ⬜ add an `Origin`/`Sec-Fetch-Site` check in middleware for all mutating requests. |
+| H1 | **No CSRF / Origin defense.** JSON routes are largely protected by `SameSite=lax` + non-simple content type, but `/api/documents` POST accepts `multipart/form-data`, which an auto-submitting cross-site form can send with the victim's cookie. | ✅ `src/proxy.ts` rejects any state-changing request whose `Origin` isn't this host. |
 | H2 | **No automated tests** for authentication, RBAC, cross-client isolation, invoice math, NCF concurrency, payment reconciliation, recurring-invoice idempotency, SLA, file authorization, proposal conversion — the exact list the brief calls out. | 🔧 unit tests added for invoice math / rate limiter / validators; integration suite still to build. |
-| H3 | `nextHumanNumber()` (tickets, projects) reads `MAX(number)` then `+1` with **no lock/transaction** → concurrent creation collides on the unique index. Invoice numbering was fixed; these were not. | ⬜ move to advisory-locked transaction or dedicated sequence rows. |
+| H3 | `nextHumanNumber()` (tickets, projects) reads `MAX(number)` then `+1` with **no lock/transaction** → concurrent creation collides on the unique index. Invoice numbering was fixed; these were not. | ✅ takes a transaction advisory lock; ticket/project creation runs allocation + insert in one `tx()`. |
 | H4 | Notifications (`sendEmail`, `sendWhatsApp`) are **awaited inside the request handler** — a slow SMTP host stalls invoice/payment/ticket responses. | ⬜ move to a queue/outbox drained by the cron worker; keep in-app notification synchronous. |
 | H5 | Cross-client isolation is enforced by ~12 hand-copied `if (role==='CLIENT' && x.client_id!==user.clientId)` checks. One omission = an IDOR. | ⬜ centralize into a query-layer scope helper + isolation tests (see H2). |
-| H6 | `db.ts` pool has **no `pool.on('error')` handler** → an idle-client network error takes down the Node process. No pruning of expired `sessions`. | ⬜ add error handler; prune sessions in the daily cron. |
+| H6 | `db.ts` pool has **no `pool.on('error')` handler** → an idle-client network error takes down the Node process. No pruning of expired `sessions`. | 🔧 pool error handler added; session pruning in the daily cron still open. |
 | H7 | `submitEcf()` and WhatsApp `fetch` calls have **no timeout** → a hung provider hangs the request. | ⬜ wrap in `AbortSignal.timeout()`. |
 
 ### MEDIUM
@@ -133,10 +133,12 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 
 ## 4. Sequenced roadmap
 
-**Phase 0 — safety net (this pass, in progress)**
-Lockfile, dependency patch, CI (lint/test/build/audit), security headers, login
-rate limiting, readiness probe, Docker standalone + non-root, env-driven compose,
-invoice-math extraction + tests, dead-code removal.
+**Phase 0 — safety net (this pass) ✅**
+Lockfile, dependency patch, CI (lint/test/build/audit), nonce CSP + security
+headers, login rate limiting, same-origin write guard, readiness probe, DB pool
+error handler, race-safe ticket/project numbering, Docker standalone + non-root,
+env-driven compose, invoice-math extraction + tests, dead-code removal.
+Deployed to `https://control.jfmcss.com` (Traefik + ACME).
 
 **Phase 1 — foundations**
 Versioned migrations · standard API envelope + Zod · `Origin` CSRF check ·
