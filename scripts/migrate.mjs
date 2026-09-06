@@ -33,6 +33,10 @@ const sha = (s) => createHash("sha256").update(s).digest("hex").slice(0, 16);
 
 await client.connect();
 try {
+  // Serialize concurrent runners (parallel test workers, or the compose migrate
+  // service racing a manual run) — the session lock releases on client.end().
+  if (!statusOnly) await client.query(`SELECT pg_advisory_lock(hashtext('jfmcss-migrate'))`);
+
   await client.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version    text PRIMARY KEY,
