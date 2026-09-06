@@ -91,6 +91,7 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 - `location.href` full-page reload for login/logout instead of the router.
 - Loading state is a bare "Cargando…" string — no skeletons, empty states, toasts, or optimistic updates.
 - `dateValue` rejects datetimes but `payments.paidAt` is handled as free text cast to `timestamptz` — inconsistent.
+- Invoice PDF prints English weekday names ("Sun Sep 06") instead of `es-DO`; dead vertical space between the navy header band and the CLIENTE block.
 
 ### IMPROVEMENTS (product / architecture)
 
