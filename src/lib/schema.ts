@@ -206,6 +206,11 @@ export const publicDecisionSchema = z.object({
   decision: z.enum(["ACCEPT", "REJECT"]),
   note: optStr(2000),
 });
+/** Body a client posts from the public CSAT survey link. */
+export const csatSubmitSchema = z.object({
+  score: z.coerce.number().int().min(1).max(5),
+  comment: optStr(2000),
+});
 
 // ─── support ────────────────────────────────────────────────────────────────
 export const ticketCreateSchema = z.object({
@@ -267,6 +272,7 @@ const automationEvent = z.enum([
   "payment.received",
   "ticket.created",
   "ticket.resolved",
+  "ticket.csat_received",
   "proposal.accepted",
   "client.created",
 ]);

@@ -80,6 +80,18 @@ export const EVENTS: EventDef[] = [
     sample: { number: "SUP-2026-00001", priority: "HIGH", subject: "No carga el panel", clientName: "ACME SRL", clientEmail: "soporte@acme.do", clientId: "" },
   },
   {
+    event: "ticket.csat_received",
+    label: "Encuesta de satisfacción respondida",
+    fields: [
+      { key: "score", label: "Puntuación (1-5)", type: "number" },
+      { key: "comment", label: "Comentario", type: "string" },
+      { key: "number", label: "Ticket", type: "string" },
+      { key: "priority", label: "Prioridad", type: "string" },
+      { key: "clientName", label: "Cliente", type: "string" },
+    ],
+    sample: { score: 2, comment: "Tardaron demasiado en responder", number: "SUP-2026-00001", priority: "HIGH", subject: "No carga el panel", clientName: "ACME SRL", clientId: "" },
+  },
+  {
     event: "proposal.accepted",
     label: "Propuesta aceptada",
     fields: [

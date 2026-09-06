@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { apiError, ok } from "@/lib/http";
 import { clientScope } from "@/lib/scope";
+import { csatSummary } from "@/lib/csat";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export async function GET() {
@@ -9,7 +10,7 @@ export async function GET() {
     const user = await requireUser();
     const scope = clientScope(user, "client_id");
 
-    const [counts, perf, unbilled] = await Promise.all([
+    const [counts, perf, unbilled, csat] = await Promise.all([
       query<any>(
         `SELECT
            count(*) FILTER (WHERE status NOT IN ('RESOLVED','CLOSED'))::int open,
@@ -38,6 +39,7 @@ export async function GET() {
             `SELECT coalesce(sum(minutes),0)::int minutes
                FROM ticket_time_entries WHERE billable=true AND invoice_id IS NULL`,
           ),
+      csatSummary(user),
     ]);
 
     const pf = perf.rows[0];
@@ -49,6 +51,7 @@ export async function GET() {
       avgFirstResponseMinutes: pf.avg_fr_seconds ? Math.round(pf.avg_fr_seconds / 60) : null,
       avgResolutionMinutes: pf.avg_res_seconds ? Math.round(pf.avg_res_seconds / 60) : null,
       unbilledMinutes: Number(unbilled.rows[0]?.minutes || 0),
+      csat,
     });
   } catch (e) {
     return apiError(e);

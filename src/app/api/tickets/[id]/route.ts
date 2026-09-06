@@ -6,6 +6,7 @@ import { assertClientAccess } from "@/lib/scope";
 import { parseBody } from "@/lib/schema";
 import { slaSnapshot } from "@/lib/sla";
 import { fireAutomations } from "@/lib/automations";
+import { requestCsat } from "@/lib/csat";
 import { z } from "zod";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -90,6 +91,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         id, number: rows[0].number, priority: rows[0].priority, subject: rows[0].subject,
         clientId: rows[0].client_id, clientName: rcli?.name ?? null, clientEmail: rcli?.email ?? null,
       });
+      await requestCsat(id).catch(() => null);
     }
     return ok({ ticket: rows[0] });
   } catch (e) {
