@@ -1,7 +1,8 @@
 import { requireUser } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { audit } from "@/lib/audit";
-import { apiError, ok, fail, text, optionalText, numberValue } from "@/lib/http";
+import { apiError, ok, optionalText, numberValue, text } from "@/lib/http";
+import { parseBody, clientCreateSchema } from "@/lib/schema";
 
 export async function GET(request: Request) {
   try {
@@ -19,8 +20,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requireUser(["SUPER_ADMIN","ADMIN","FINANCE","PM"]);
-    const b = await request.json(); const name=text(b.name,200); if(!name) return fail("VALIDATION", "Nombre requerido", 400);
-    const code = optionalText(b.code,40) || `CLI-${Date.now().toString().slice(-7)}`;
+    const b = await parseBody(request, clientCreateSchema);
+    const name = b.name;
+    const code = b.code || `CLI-${Date.now().toString().slice(-7)}`;
     const { rows } = await query(`INSERT INTO clients(code,name,legal_name,tax_id,email,phone,website,address,city,country,payment_terms_days,status,notes,tags) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb) RETURNING *`,[
       code,name,optionalText(b.legalName,200),optionalText(b.taxId,40),optionalText(b.email,254),optionalText(b.phone,40),optionalText(b.website,300),optionalText(b.address,500),optionalText(b.city,100),optionalText(b.country,100)||"República Dominicana",numberValue(b.paymentTermsDays,30),text(b.status,20)||"ACTIVE",optionalText(b.notes,4000),JSON.stringify(Array.isArray(b.tags)?b.tags:[])
     ]);

@@ -73,6 +73,14 @@ export const contactCreateSchema = z.object({
   title: optStr(120),
   isPrimary: bool.optional(),
 });
+export const contactUpdateSchema = z.object({
+  name: optStr(200),
+  email: optStr(254),
+  phone: optStr(50),
+  title: optStr(120),
+  isPrimary: z.boolean().optional(),
+});
+export const notificationReadSchema = z.object({ id: id });
 
 // ─── sales / projects / tasks ───────────────────────────────────────────────
 export const opportunityCreateSchema = z.object({

@@ -2,7 +2,9 @@ import { requireUser } from "@/lib/auth";
 import { nextHumanNumber, query, tx } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { notifyInApp, sendEmail } from "@/lib/notifications";
-import { apiError, ok, fail, text, optionalText, numberValue } from "@/lib/http";
+import { apiError, ok, fail, optionalText, numberValue } from "@/lib/http";
+import { assertClientAccess, resolveClientId } from "@/lib/scope";
+import { parseBody, ticketCreateSchema } from "@/lib/schema";
 
 const DEFAULT_SLA_HOURS: Record<string, number> = { LOW: 48, MEDIUM: 24, HIGH: 8, URGENT: 2 };
 
@@ -45,14 +47,12 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    const b = await request.json().catch(() => ({}));
-    const clientId = user.role === "CLIENT" ? user.clientId : text(b.clientId, 50);
-    const subject = text(b.subject, 250);
-    const description = text(b.description, 10000);
-    if (!clientId || !subject || !description) {
-      return fail("VALIDATION", "Cliente, asunto y descripción requeridos", 400);
-    }
-    const priority = (text(b.priority, 20) || "MEDIUM").toUpperCase();
+    const b = await parseBody(request, ticketCreateSchema);
+    const clientId = resolveClientId(user, b.clientId);
+    const { subject, description } = b;
+    if (!clientId) return fail("VALIDATION", "Cliente requerido", 400);
+    assertClientAccess(user, clientId);
+    const priority = b.priority ?? "MEDIUM";
     const slaHours = await slaHoursFor(priority);
 
     // Number allocation + both inserts share one transaction so concurrent
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
           subject,
           description,
           priority,
-          text(b.category, 50) || "GENERAL",
+          b.category ?? "GENERAL",
           optionalText(b.assigneeId, 50),
           optionalText(b.requesterEmail, 254) || user.email,
           slaHours,
