@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: jfmcss
+      POSTGRES_USER: jfmcss
+      POSTGRES_PASSWORD: jfmcss
+    ports:
+      - "5432:5432"
+    volumes:
+      - jfmcss_pg:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jfmcss -d jfmcss"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://jfmcss:jfmcss@db:5432/jfmcss
+      APP_URL: http://localhost:3000
+      SESSION_DAYS: 7
+      BOOTSTRAP_ADMIN_EMAIL: admin@jfmcss.com
+      BOOTSTRAP_ADMIN_PASSWORD: change-me-now
+      BOOTSTRAP_ADMIN_NAME: JFMCSS Admin
+      CRON_SECRET: local-dev-secret
+    ports:
+      - "3000:3000"
+
+volumes:
+  jfmcss_pg:
