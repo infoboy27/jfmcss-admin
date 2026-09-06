@@ -23,6 +23,7 @@ export async function submitEcf(invoice: Record<string, unknown>) {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
     body: JSON.stringify({ issuerRnc: process.env.ECF_RNC, invoice }),
+    signal: AbortSignal.timeout(Number(process.env.ECF_TIMEOUT_MS || 15_000)),
   });
   const data = await response.json().catch(() => ({})) as Record<string, unknown>;
   if (!response.ok) throw new Error(`Proveedor e-CF rechazó la solicitud (${response.status})`);

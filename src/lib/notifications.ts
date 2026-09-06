@@ -24,6 +24,10 @@ export async function sendEmail(to: string, subject: string, html: string, clien
       port: Number(process.env.SMTP_PORT || 587),
       secure: process.env.SMTP_SECURE === "true",
       auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
+      // Don't let an unreachable relay hang the request thread.
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
     });
     await transporter.sendMail({ from: process.env.SMTP_FROM || "JFMCSS <notificaciones@jfmcss.com>", to, subject, html });
     await query(`UPDATE notifications SET status='SENT',sent_at=now() WHERE id=$1`, [id]);
@@ -43,6 +47,7 @@ export async function sendWhatsApp(to: string, body: string, clientId?: string |
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
     body: JSON.stringify({ messaging_product: "whatsapp", to, type: "text", text: { body } }),
+    signal: AbortSignal.timeout(Number(process.env.WHATSAPP_TIMEOUT_MS || 15_000)),
   });
   await query(`UPDATE notifications SET status=$2,sent_at=CASE WHEN $2='SENT' THEN now() ELSE sent_at END WHERE id=$1`, [id, response.ok ? "SENT" : "FAILED"]);
   if (!response.ok) throw new Error(`WhatsApp API ${response.status}`);
