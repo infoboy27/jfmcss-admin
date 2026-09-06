@@ -130,8 +130,9 @@ export async function revenueReport(user: SessionUser, from: string, to: string)
 export async function collectionsReport(user: SessionUser) {
   const s = clientScope(user, "i.client_id");
   const { rows } = await query<any>(
-    `SELECT i.id, i.number, i.ncf, i.total, i.paid_amount, i.due_date, i.status,
-            i.promise_date, i.promise_note, i.dunning_log,
+    `SELECT i.id, i.number, i.ncf, i.total, i.paid_amount, i.status,
+            i.due_date::text due_date, i.promise_date::text promise_date,
+            i.promise_note, i.dunning_log,
             c.id client_id, c.name client_name, c.email client_email,
             (CURRENT_DATE - i.due_date)::int overdue_days
        FROM invoices i JOIN clients c ON c.id = i.client_id
