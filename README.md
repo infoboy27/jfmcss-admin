@@ -79,7 +79,10 @@ safe to call repeatedly.
 | `POST /api/cron/notifications` | every 1–2 min | drain the email/WhatsApp outbox (retries with backoff) |
 | `POST /api/cron/sla` | every 5–15 min | SLA threshold alerts (50/75/90/100 %), escalation, breach flags |
 | `POST /api/cron/recurring` | once per day | issue invoices for recurring services whose next date has arrived (idempotent) |
-| `POST /api/cron/daily` | once per day | overdue invoices, due-soon reminders, renewals, session pruning |
+| `POST /api/cron/daily` | once per day | overdue invoices, renewals, session pruning, health-score refresh, **dunning cadence** |
+
+`/api/cron/dunning` also exists as a standalone endpoint if you want collection
+reminders to go out at a specific hour rather than with the daily batch.
 
 ```bash
 * * * * *    curl -fsS -X POST https://control.example.com/api/cron/notifications -H "Authorization: Bearer $CRON_SECRET"

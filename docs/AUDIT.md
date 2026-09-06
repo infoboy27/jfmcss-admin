@@ -121,7 +121,7 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 | Recurring services | ✅ v1 | an asset with `auto_invoice=true` is billed each cycle by `/api/cron/recurring` — idempotent via a unique `(asset_id, period_start)` invoice, real NCF, client email. |
 | Dominican billing / NCF / e-CF | Partial | Sequence allocation + NCF on issue + e-CF adapter stub + ✅ credit notes (E34/B04). No sequence-exhaustion alerts, no e-CF XML. |
 | Invoice / proposal / receipt PDFs | Partial | ✅ invoice + ✅ proposal + ✅ credit-note PDFs (shared template, dd/mm/yyyy). No receipt / statement templates. WinAnsi fonts. |
-| Payments / AR / aging | ✅ v1 | `/api/reports/ar` — aging buckets (current/1-30/31-60/61-90/90+), DSO, by-client prioritised list, CSV export; Cobros page shows it. No receipt PDF / automated dunning cadence yet. |
+| Payments / AR / aging / cobranza | ✅ | AR aging + DSO + by-client; `/api/reports/collections` per-invoice dunning state; **automated dunning** (configurable −3/+1/+7/+15-day cadence, one step per run, escalation to Finance) + payment-promise snooze. No receipt PDF yet. |
 | Support / Help Desk / SLA | ✅ v1 | first-response + resolution targets (config `sla_v2`), pausable clock (WAITING_CLIENT), 50/75/90/100 % alerts + escalation via `/api/cron/sla`, breach flags, dashboard (compliance %, avg times). No CSAT. |
 | Billable support → invoice | ✅ | `ticket_time_entries` + `/api/tickets/[id]/time`; `/api/support/unbilled` groups by client; `/api/support/invoice` rolls it into one invoice at the configured rate and stamps the entries (no double-billing). |
 | Assets / infrastructure | Partial | Asset CRUD + days-to-renewal. No secret-manager references, no dependency graph. |
