@@ -54,3 +54,5 @@
 .live-badge.viewed,.live-badge.draft{color:#8d9ab0}
 .live-badge.accepted{color:#55e0ad;border-color:rgba(46,211,154,.22);background:rgba(46,211,154,.07)}
 .live-badge.rejected,.live-badge.expired{color:#ff8092;border-color:rgba(255,98,123,.22);background:rgba(255,98,123,.07)}
+.recur-toggle{flex-direction:row!important;align-items:center;gap:8px!important}
+.recur-toggle input{width:auto}

@@ -29,7 +29,7 @@ What is genuinely solid:
 
 What it is not yet:
 
-- No proposals/quotes, no recurring-service billing, no automation builder, no
+- ~~No proposals/quotes, no recurring-service billing~~ (both shipped v1), no automation builder, no
   reports module, no real health score, no "JFMCSS Pulse", no renewal-watch
   dashboard, no notification center, no global search, no MFA, no credit notes.
 - No automated tests for the money- and access-critical paths.
@@ -117,7 +117,7 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 | Leads & opportunities / pipeline | Partial | Opportunities table + weighted forecast number. No kanban, no stage automation, no per-deal activity. |
 | Proposals / quotes | ✅ v1 | Schema, branded PDF, tokenised public accept/reject page (`/p/[token]`), one-tx conversion → project + opportunity WON + optional initial invoice. Milestone editor is minimal; no proposal versioning yet. |
 | Projects & tasks | Partial | Projects + tasks + margin math. No team, no time tracking, no file tab, no milestones. |
-| Recurring services | **Missing** | `assets.billing_cycle` exists but nothing generates invoices from it. |
+| Recurring services | ✅ v1 | an asset with `auto_invoice=true` is billed each cycle by `/api/cron/recurring` — idempotent via a unique `(asset_id, period_start)` invoice, real NCF, client email. |
 | Dominican billing / NCF / e-CF | Partial | Sequence allocation + NCF on issue + e-CF adapter stub. No credit notes, no sequence-exhaustion alerts, no e-CF XML. |
 | Invoice / proposal / receipt PDFs | Partial | Invoice PDF only, single-page, WinAnsi fonts. No receipt / credit note / statement templates. |
 | Payments / AR / aging | Partial | Payment registration + balance recompute. No aging report, no collections cadence, no receipt PDF. |

@@ -224,7 +224,13 @@ export const assetCreateSchema = z.object({
   billingCycle: z.enum(["MONTHLY", "QUARTERLY", "SEMIANNUAL", "ANNUAL", "CUSTOM"]).optional(),
   status: z.enum(["ACTIVE", "AT_RISK", "EXPIRED", "CANCELLED"]).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
+  // recurring-service fields
+  autoInvoice: z.boolean().optional(),
+  nextInvoiceDate: isoDate,
+  fiscalType: z.enum(["E31", "E32", "E33", "E34", "B01", "B02"]).optional(),
+  serviceDescription: optStr(500),
 });
+export const assetUpdateSchema = assetCreateSchema.partial().omit({ clientId: true });
 
 // ─── admin ──────────────────────────────────────────────────────────────────
 export const userCreateSchema = z.object({
