@@ -5,6 +5,7 @@ import { audit } from "@/lib/audit";
 import { assertClientAccess } from "@/lib/scope";
 import { parseBody } from "@/lib/schema";
 import { slaSnapshot } from "@/lib/sla";
+import { fireAutomations } from "@/lib/automations";
 import { z } from "zod";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -81,6 +82,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const { rows } = await query<any>(`UPDATE tickets SET ${sets.join(", ")} WHERE id = $1 RETURNING *`, p);
     await audit(user.id, "UPDATE", "TICKET", id, rows[0], before);
+    if (b.status === "RESOLVED" && before.status !== "RESOLVED") {
+      const rcli = (
+        await query<{ name: string; email: string | null }>(`SELECT name,email FROM clients WHERE id=$1`, [rows[0].client_id])
+      ).rows[0];
+      fireAutomations("ticket.resolved", {
+        id, number: rows[0].number, priority: rows[0].priority, subject: rows[0].subject,
+        clientId: rows[0].client_id, clientName: rcli?.name ?? null, clientEmail: rcli?.email ?? null,
+      });
+    }
     return ok({ ticket: rows[0] });
   } catch (e) {
     return apiError(e);

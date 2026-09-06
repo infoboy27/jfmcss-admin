@@ -40,7 +40,7 @@ function View({k,d,user,refresh,go,onNotifCount}:{k:Key;d:any;user:User;refresh:
  if(k==='support')return <SupportView rows={d?.tickets||[]} user={user} refresh={refresh}/>;
  if(k==='assets')return <Assets rows={d?.assets||[]}/>;
  if(k==='notifications')return <Notifications onCount={onNotifCount}/>;
- if(k==='automations')return <Automations rows={d?.automations||[]}/>;
+ if(k==='automations')return <Automations d={d} refresh={refresh}/>;
  return <Settings user={user}/>;
 }
 function Empty({t}:{t:string}){return <div className="live-empty">{t}</div>}
@@ -153,7 +153,57 @@ function NotifPrefs({prefs,close,saved}:{prefs:Row;close:()=>void;saved:()=>void
   <button className="primary-btn" disabled={busy} onClick={save}>Guardar</button>
  </div></Modal>;
 }
-function Automations({rows}:{rows:Row[]}){if(!rows.length)return <Empty t="Sin reglas personalizadas. El cron diario ya procesa vencimientos, renovaciones y SLA."/>;return <div className="live-grid">{rows.map(x=><article className="panel live-card" key={x.id}><div><span className="eyebrow">{x.event}</span><B v={x.enabled?'ACTIVE':'INACTIVE'}/></div><h3>{x.name}</h3><p className="mono">{JSON.stringify(x.actions)}</p></article>)}</div>}
+const ACT_LABEL:Record<string,string>={notify:'Notificar',email:'Correo',webhook:'Webhook'};
+function Automations({d,refresh}:{d:any;refresh:()=>void}){
+ const[edit,setEdit]=useState<Row|null|undefined>(undefined);// undefined=closed, null=new
+ const cat=d?.catalog;const rules:Row[]=d?.automations||[];const runs:Row[]=d?.runs||[];
+ const evLabel=(ev:string)=>cat?.events?.find((e:Row)=>e.event===ev)?.label||ev;
+ async function toggle(r:Row){try{await api(`/api/automations/${r.id}`,{method:'PATCH',body:JSON.stringify({enabled:!r.enabled})});refresh()}catch(e){alert((e as Error).message)}}
+ async function del(r:Row){if(!confirm(`¿Eliminar la regla “${r.name}”?`))return;try{await api(`/api/automations/${r.id}`,{method:'DELETE'});refresh()}catch(e){alert((e as Error).message)}}
+ return <div className="autos">
+  <div className="autos-head"><p>Reglas <b>WHEN → IF → DO</b>: cuando ocurre un evento y se cumplen las condiciones, se ejecutan las acciones. El cron diario sigue cubriendo vencimientos, renovaciones y SLA por separado.</p><button className="primary-btn" onClick={()=>setEdit(null)}>＋ Nueva regla</button></div>
+  {!rules.length?<div className="live-empty small">Sin reglas todavía. Crea una para automatizar avisos, correos o webhooks.</div>:
+   <div className="panel live-table-wrap"><table className="live-table"><thead><tr><th>Regla</th><th>Cuando</th><th>Condiciones</th><th>Acciones</th><th>Última ejec.</th><th></th></tr></thead><tbody>{rules.map(r=><tr key={r.id}><td><b>{r.name}</b></td><td>{evLabel(r.event)}</td><td>{(r.conditions?.all||[]).length||'—'}</td><td>{(r.actions||[]).map((a:Row,i:number)=><span key={i} className="live-badge" style={{marginRight:4}}>{ACT_LABEL[a.type]||a.type}</span>)}</td><td>{r.last_run_at?D(r.last_run_at):'—'}</td><td className="prop-actions"><button onClick={()=>toggle(r)}>{r.enabled?'Desactivar':'Activar'}</button><button onClick={()=>setEdit(r)}>Editar</button><button onClick={()=>del(r)}>Eliminar</button></td></tr>)}</tbody></table></div>}
+  {runs.length>0&&<section className="panel table-panel"><div className="panel-head"><div><span className="panel-kicker">HISTORIAL</span><h2>Últimas ejecuciones</h2></div></div><Table h={['Regla','Evento','Estado','Resultado','Cuando']}>{runs.map(x=><tr key={x.id}><td><b>{x.rule_name||'(eliminada)'}</b></td><td>{evLabel(x.event)}</td><td><B v={x.status}/></td><td><small>{(x.result||[]).map((r:Row)=>`${ACT_LABEL[r.action]||r.action}: ${r.detail}`).join(' · ')||'—'}</small></td><td>{D(x.created_at)}</td></tr>)}</Table></section>}
+  {edit!==undefined&&cat&&<AutomationModal rule={edit} catalog={cat} close={()=>setEdit(undefined)} done={()=>{setEdit(undefined);refresh()}}/>}
+ </div>;
+}
+function AutomationModal({rule,catalog,close,done}:{rule:Row|null;catalog:any;close:()=>void;done:()=>void}){
+ const events:Row[]=catalog.events||[];const ops:Row[]=catalog.ops||[];
+ const[name,setName]=useState(rule?.name||'');
+ const[event,setEvent]=useState(rule?.event||events[0]?.event||'');
+ const[conds,setConds]=useState<Row[]>(rule?.conditions?.all||[]);
+ const[acts,setActs]=useState<Row[]>(rule?.actions||[{type:'notify',to:'team',title:'',body:''}]);
+ const[err,setErr]=useState('');const[preview,setPreview]=useState<Row|null>(null);const[busy,setBusy]=useState(false);
+ const fields:Row[]=events.find(e=>e.event===event)?.fields||[];
+ const body={name:name.trim(),event,enabled:rule?rule.enabled:true,conditions:{all:conds.filter(c=>c.field&&c.op)},actions:acts};
+ async function test(){setErr('');try{setPreview(await api('/api/automations/test',{method:'POST',body:JSON.stringify({event,conditions:body.conditions,actions:acts})}))}catch(e){setErr((e as Error).message)}}
+ async function save(){setBusy(true);setErr('');try{if(rule)await api(`/api/automations/${rule.id}`,{method:'PATCH',body:JSON.stringify(body)});else await api('/api/automations',{method:'POST',body:JSON.stringify(body)});done()}catch(e){setErr((e as Error).message);setBusy(false)}}
+ return <Modal title={rule?'Editar regla':'Nueva regla de automatización'} close={close}><div className="auto-form">
+  <label>Nombre<input value={name} onChange={e=>setName(e.target.value)} placeholder="Ej. Avisar a finanzas de facturas grandes"/></label>
+  <label>Cuando ocurre<select value={event} onChange={e=>{setEvent(e.target.value);setConds([]);setPreview(null)}}>{events.map(ev=><option key={ev.event} value={ev.event}>{ev.label}</option>)}</select></label>
+  <div className="auto-block"><div className="auto-block-head"><span>Condiciones (todas deben cumplirse)</span><button type="button" onClick={()=>setConds(c=>[...c,{field:fields[0]?.key||'',op:'eq',value:''}])}>＋ Añadir</button></div>
+   {!conds.length&&<small className="auto-hint">Sin condiciones — la regla se ejecuta en cada evento.</small>}
+   {conds.map((c,i)=><div className="auto-row" key={i}>
+    <select value={c.field} onChange={e=>setConds(v=>v.map((x,j)=>j===i?{...x,field:e.target.value}:x))}>{fields.map((f:Row)=><option key={f.key} value={f.key}>{f.label}</option>)}</select>
+    <select value={c.op} onChange={e=>setConds(v=>v.map((x,j)=>j===i?{...x,op:e.target.value}:x))}>{ops.map((o:Row)=><option key={o.op} value={o.op}>{o.label}</option>)}</select>
+    {!['not_empty','is_empty'].includes(c.op)&&<input value={c.value||''} onChange={e=>setConds(v=>v.map((x,j)=>j===i?{...x,value:e.target.value}:x))} placeholder="valor"/>}
+    <button type="button" onClick={()=>setConds(v=>v.filter((_,j)=>j!==i))}>×</button>
+   </div>)}
+  </div>
+  <div className="auto-block"><div className="auto-block-head"><span>Acciones</span><button type="button" onClick={()=>setActs(a=>[...a,{type:'notify',to:'team',title:'',body:''}])}>＋ Añadir</button></div>
+   {acts.map((a,i)=><div className="auto-action" key={i}>
+    <div className="auto-action-top"><select value={a.type} onChange={e=>setActs(v=>v.map((x,j)=>j===i?{type:e.target.value,to:e.target.value==='email'?'client':'team',title:'',subject:'',body:'',url:''}:x))}>{(catalog.actionTypes||[]).map((t:Row)=><option key={t.type} value={t.type}>{t.label}</option>)}</select><button type="button" onClick={()=>setActs(v=>v.filter((_,j)=>j!==i))}>×</button></div>
+    {a.type==='notify'&&<><input value={a.to||''} onChange={e=>setActs(v=>v.map((x,j)=>j===i?{...x,to:e.target.value}:x))} placeholder="team · role:FINANCE · user:<id>"/><input value={a.title||''} onChange={e=>setActs(v=>v.map((x,j)=>j===i?{...x,title:e.target.value}:x))} placeholder="Título · usa {{number}}, {{total}}…"/><input value={a.body||''} onChange={e=>setActs(v=>v.map((x,j)=>j===i?{...x,body:e.target.value}:x))} placeholder="Detalle (opcional)"/></>}
+    {a.type==='email'&&<><input value={a.to||''} onChange={e=>setActs(v=>v.map((x,j)=>j===i?{...x,to:e.target.value}:x))} placeholder="client · correo@dominio.com"/><input value={a.subject||''} onChange={e=>setActs(v=>v.map((x,j)=>j===i?{...x,subject:e.target.value}:x))} placeholder="Asunto"/><textarea value={a.body||''} onChange={e=>setActs(v=>v.map((x,j)=>j===i?{...x,body:e.target.value}:x))} placeholder="Cuerpo · {{clientName}}, {{number}}…"/></>}
+    {a.type==='webhook'&&<input value={a.url||''} onChange={e=>setActs(v=>v.map((x,j)=>j===i?{...x,url:e.target.value}:x))} placeholder="https://…  (no se permiten destinos privados)"/>}
+   </div>)}
+  </div>
+  {preview&&<div className={`auto-preview ${preview.matched?'ok':'no'}`}>{preview.matched?<><b>Coincide.</b> Ejecutaría: {(preview.plannedActions||[]).map((p:Row)=>p.summary).join(' · ')||'nada'}</>:<b>Con el ejemplo, las condiciones no coinciden.</b>}</div>}
+  {err&&<div className="live-error">{err}</div>}
+  <div className="live-actions"><button type="button" className="secondary-btn" onClick={test}>Probar con ejemplo</button><button type="button" className="primary-btn" disabled={busy||!name.trim()} onClick={save}>{rule?'Guardar cambios':'Crear regla'}</button></div>
+ </div></Modal>;
+}
 function Settings({user}:{user:User}){return <SettingsPanel user={user}/>}
 
 const HRS=(m:any)=>m==null?'—':m<60?`${m}m`:`${Math.floor(m/60)}h ${m%60}m`;

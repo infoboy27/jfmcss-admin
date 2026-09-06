@@ -6,6 +6,7 @@ import { audit } from "@/lib/audit";
 import { sendEmail } from "@/lib/notifications";
 import { apiError, ok, optionalText, dateValue } from "@/lib/http";
 import { parseBody, invoiceCreateSchema } from "@/lib/schema";
+import { fireAutomations } from "@/lib/automations";
 
 export async function GET() {
   try {
@@ -139,6 +140,20 @@ export async function POST(request: Request) {
     }
 
     await audit(user.id, "CREATE", "INVOICE", invoice.id, invoice);
+    const cli = (
+      await query<{ name: string; email: string | null }>(`SELECT name,email FROM clients WHERE id=$1`, [clientId])
+    ).rows[0];
+    fireAutomations("invoice.created", {
+      id: invoice.id,
+      number: invoice.number,
+      total: Number(invoice.total),
+      fiscalType: invoice.fiscal_type,
+      source: (invoice.source as string) ?? "MANUAL",
+      status: invoice.status,
+      clientId,
+      clientName: cli?.name ?? null,
+      clientEmail: cli?.email ?? null,
+    });
     return ok({ invoice }, 201);
   } catch (e) {
     return apiError(e);

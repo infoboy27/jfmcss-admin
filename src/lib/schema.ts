@@ -261,10 +261,42 @@ export const userUpdateSchema = z.object({
   clientId: optId,
   password: z.union([z.string().min(10).max(500), z.literal("")]).optional(),
 });
+const automationEvent = z.enum([
+  "invoice.created",
+  "invoice.paid",
+  "payment.received",
+  "ticket.created",
+  "ticket.resolved",
+  "proposal.accepted",
+  "client.created",
+]);
+const automationCondition = z.object({
+  field: reqStr(80, "campo requerido"),
+  op: z.enum(["eq", "ne", "gt", "gte", "lt", "lte", "contains", "in", "not_empty", "is_empty"]),
+  value: optStr(300),
+});
+const automationAction = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("notify"), to: trimmed(120).default("team"), title: reqStr(200, "título requerido"), body: optStr(500) }),
+  z.object({ type: z.literal("email"), to: reqStr(254, "destinatario requerido"), subject: reqStr(200, "asunto requerido"), body: reqStr(2000, "cuerpo requerido") }),
+  z.object({ type: z.literal("webhook"), url: z.string().url("URL inválida").max(500) }),
+]);
 export const automationCreateSchema = z.object({
   name: reqStr(200, "nombre requerido"),
-  event: reqStr(100, "evento requerido"),
+  event: automationEvent,
   enabled: z.boolean().optional(),
-  conditions: z.record(z.string(), z.unknown()).optional(),
-  actions: z.array(z.unknown()).optional(),
+  conditions: z.object({ all: z.array(automationCondition).max(20).optional() }).optional(),
+  actions: z.array(automationAction).min(1, "al menos una acción").max(10),
+});
+export const automationUpdateSchema = z.object({
+  name: optStr(200),
+  event: automationEvent.optional(),
+  enabled: z.boolean().optional(),
+  conditions: z.object({ all: z.array(automationCondition).max(20).optional() }).optional(),
+  actions: z.array(automationAction).min(1).max(10).optional(),
+});
+export const automationTestSchema = z.object({
+  event: automationEvent,
+  conditions: z.object({ all: z.array(automationCondition).max(20).optional() }).optional(),
+  actions: z.array(automationAction).max(10).optional(),
+  payload: z.record(z.string(), z.unknown()).optional(),
 });

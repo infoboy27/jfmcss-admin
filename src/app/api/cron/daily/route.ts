@@ -24,6 +24,7 @@ export async function POST(request: Request) {
 
     // Housekeeping: drop expired session rows so the table doesn't grow forever.
     const pruned = await query(`DELETE FROM sessions WHERE expires_at < now()-interval '1 day'`);
+    await query(`DELETE FROM automation_runs WHERE created_at < now()-interval '60 days'`);
 
     const team = (
       await query<{ id: string; email: string }>(

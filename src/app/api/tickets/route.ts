@@ -6,6 +6,7 @@ import { apiError, ok, fail, optionalText } from "@/lib/http";
 import { assertClientAccess, resolveClientId } from "@/lib/scope";
 import { parseBody, ticketCreateSchema } from "@/lib/schema";
 import { slaConfig, addHours, slaSnapshot, type Priority } from "@/lib/sla";
+import { fireAutomations } from "@/lib/automations";
 
 export async function GET() {
   try {
@@ -101,6 +102,19 @@ export async function POST(request: Request) {
       );
     }
     await audit(user.id, "CREATE", "TICKET", ticket.id, ticket);
+    const tcli = (
+      await query<{ name: string; email: string | null }>(`SELECT name,email FROM clients WHERE id=$1`, [clientId])
+    ).rows[0];
+    fireAutomations("ticket.created", {
+      id: ticket.id,
+      number: ticket.number,
+      priority,
+      subject,
+      category: b.category ?? "GENERAL",
+      clientId,
+      clientName: tcli?.name ?? null,
+      clientEmail: tcli?.email ?? null,
+    });
     return ok({ ticket }, 201);
   } catch (e) {
     return apiError(e);

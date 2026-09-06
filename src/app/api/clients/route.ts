@@ -3,6 +3,7 @@ import { query } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { apiError, ok, optionalText, numberValue, text } from "@/lib/http";
 import { parseBody, clientCreateSchema } from "@/lib/schema";
+import { fireAutomations } from "@/lib/automations";
 
 export async function GET(request: Request) {
   try {
@@ -26,6 +27,11 @@ export async function POST(request: Request) {
     const { rows } = await query(`INSERT INTO clients(code,name,legal_name,tax_id,email,phone,website,address,city,country,payment_terms_days,status,notes,tags) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb) RETURNING *`,[
       code,name,optionalText(b.legalName,200),optionalText(b.taxId,40),optionalText(b.email,254),optionalText(b.phone,40),optionalText(b.website,300),optionalText(b.address,500),optionalText(b.city,100),optionalText(b.country,100)||"República Dominicana",numberValue(b.paymentTermsDays,30),text(b.status,20)||"ACTIVE",optionalText(b.notes,4000),JSON.stringify(Array.isArray(b.tags)?b.tags:[])
     ]);
-    await audit(user.id,"CREATE","CLIENT",rows[0].id,rows[0]); return ok({client:rows[0]}, 201);
+    await audit(user.id,"CREATE","CLIENT",rows[0].id,rows[0]);
+    fireAutomations("client.created", {
+      id: rows[0].id, name: rows[0].name, status: rows[0].status,
+      clientId: rows[0].id, clientName: rows[0].name, clientEmail: rows[0].email ?? null,
+    });
+    return ok({client:rows[0]}, 201);
   } catch(error){ return apiError(error); }
 }

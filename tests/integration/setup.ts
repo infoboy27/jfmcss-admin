@@ -22,7 +22,8 @@ export async function reset() {
   await pool.query(`
     TRUNCATE users, sessions, clients, client_contacts, opportunities, projects, project_tasks,
              invoices, invoice_items, payments, tickets, ticket_messages, ticket_time_entries,
-             assets, documents, notifications, notification_prefs, automation_rules, audit_log,
+             assets, documents, notifications, notification_prefs,
+             automation_rules, automation_runs, audit_log,
              proposals, proposal_items, proposal_milestones
       RESTART IDENTITY CASCADE
   `);

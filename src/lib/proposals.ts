@@ -3,6 +3,7 @@ import { tx, nextHumanNumber } from "./db";
 import { ApiError } from "./errors";
 import { calculateInvoice } from "./billing";
 import { allocateFiscalNumber } from "./fiscal";
+import { fireAutomations } from "./automations";
 
 type ProposalRow = {
   id: string;
@@ -54,6 +55,7 @@ export function convertProposal(
   actorId: string | null,
   opts: { note: string | null; createInitialInvoice: boolean },
 ): Promise<ConversionOutcome> {
+  let accepted: Record<string, unknown> | null = null;
   return tx(async (c) => {
     const p = (await c.query<ProposalRow>(`SELECT * FROM proposals WHERE id=$1 FOR UPDATE`, [proposalId])).rows[0];
     if (!p) throw new ApiError("NOT_FOUND", "Propuesta no encontrada", 404);
@@ -129,6 +131,22 @@ export function convertProposal(
       invoice = inv;
     }
 
+    const cli = (
+      await c.query<{ name: string; email: string | null }>(`SELECT name,email FROM clients WHERE id=$1`, [p.client_id])
+    ).rows[0];
+    accepted = {
+      id: proposalId,
+      number: p.number,
+      total: Number(p.total),
+      clientId: p.client_id,
+      clientName: cli?.name ?? null,
+      clientEmail: cli?.email ?? null,
+      acceptedBy: actorId ? "staff" : "cliente",
+    };
+
     return { proposal: proposalId, project, invoice, lineCount };
+  }).then((out) => {
+    if (accepted) fireAutomations("proposal.accepted", accepted);
+    return out;
   });
 }
