@@ -12,6 +12,9 @@ Operations OS for JFMCSS: CRM + sales + projects + fiscal billing + collections 
 - Invoices with dynamic line items, ITBIS, fiscal type, transactional NCF/e-NCF allocation, due date and branded JFMCSS PDF.
 - Payment registration updates invoice balances/status automatically.
 - Support tickets with priority-based SLA, conversation history, internal-note-ready model and billable minutes.
+- CSAT: on ticket resolution the client is emailed a one-question survey
+  (`/csat/<token>`, unauthenticated, 1–5 + comment); low scores notify the
+  support leads; 90-day rollup on the Soporte and Reportes pages.
 - Asset/renewal watch for domains, SSL, cloud, servers, licenses and SaaS.
 - In-app, SMTP email and Meta WhatsApp notification adapters, with a categorised
   per-user notification center (unread counts, filters, bulk mark-read) and

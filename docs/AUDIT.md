@@ -12,8 +12,8 @@ the plan to take it to production. It is updated as items are resolved.
 _Started as a ~15 % prototype. After the ownership pass it is a **working
 revenue-and-service operations core**, deployed at `https://control.jfmcss.com`._
 
-**Done (Phase 0–3 + collections + notification center + automation engine,
-~45 commits, CI green incl. a DB integration job):**
+**Done (Phase 0–3 + collections + notification center + automation engine + CSAT,
+~47 commits, CI green incl. a DB integration job):**
 security hardening (headers/CSP-nonce, login rate limit, Origin guard) ·
 versioned migrations (advisory-locked runner) · standard API envelope + Zod on
 every mutation route · centralized client-scope guard · notification outbox +
@@ -23,9 +23,10 @@ every mutation route · centralized client-scope guard · notification outbox +
 JFMCSS Pulse · reports + renewal watch · global search · **AR aging + automated
 dunning cadence** (payment-promise snooze) · **notification center** (categorised
 inbox, per-user mutes) · **automation engine** (WHEN/IF/DO, notify/email/webhook,
-SSRF-guarded, dry-run + run log) · 62 unit + 17 integration tests.
+SSRF-guarded, dry-run + run log) · **CSAT** (survey on resolve, public page,
+low-score escalation) · 62 unit + 22 integration tests.
 
-**Still to build:** CSAT · audit UI · MFA · design-system extraction ·
+**Still to build:** audit UI · MFA · design-system extraction ·
 accessibility · pagination · client-portal shell. See §3–4.
 
 What is genuinely solid:
@@ -125,7 +126,8 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 | Dominican billing / NCF / e-CF | Partial | Sequence allocation + NCF on issue + e-CF adapter stub + ✅ credit notes (E34/B04). No sequence-exhaustion alerts, no e-CF XML. |
 | Invoice / proposal / receipt PDFs | Partial | ✅ invoice + ✅ proposal + ✅ credit-note PDFs (shared template, dd/mm/yyyy). No receipt / statement templates. WinAnsi fonts. |
 | Payments / AR / aging / cobranza | ✅ | AR aging + DSO + by-client; `/api/reports/collections` per-invoice dunning state; **automated dunning** (configurable −3/+1/+7/+15-day cadence, one step per run, escalation to Finance) + payment-promise snooze. No receipt PDF yet. |
-| Support / Help Desk / SLA | ✅ v1 | first-response + resolution targets (config `sla_v2`), pausable clock (WAITING_CLIENT), 50/75/90/100 % alerts + escalation via `/api/cron/sla`, breach flags, dashboard (compliance %, avg times). No CSAT. |
+| Support / Help Desk / SLA | ✅ v1 | first-response + resolution targets (config `sla_v2`), pausable clock (WAITING_CLIENT), 50/75/90/100 % alerts + escalation via `/api/cron/sla`, breach flags, dashboard (compliance %, avg times). |
+| CSAT | ✅ v1 | migration 0011 (`csat_token`/`score`/`comment`/`requested_at`/`submitted_at` on tickets). `requestCsat` on resolve emails the client `/csat/<token>` (unauthenticated page, 5-face picker + comment); `submitCsat` is one-shot (UPDATE-guarded), notifies assignee + support leads on score ≤ 2, emits `ticket.csat_received`. `csatSummary` — 90-day avg / response rate / distribution / recent comments, client-scoped — folded into `/api/support/metrics`, shown on Soporte + Reportes. |
 | Billable support → invoice | ✅ | `ticket_time_entries` + `/api/tickets/[id]/time`; `/api/support/unbilled` groups by client; `/api/support/invoice` rolls it into one invoice at the configured rate and stamps the entries (no double-billing). |
 | Assets / infrastructure | Partial | Asset CRUD + days-to-renewal. No secret-manager references, no dependency graph. |
 | Renewal Watch | ✅ | `GET /api/reports/renewals` — 7/30/60/90-day windows with count + revenue, overdue count, revenue-at-risk; Servicios & activos page leads with it + CSV. |
@@ -172,8 +174,8 @@ idempotent cycle billing · ✅ credit notes (E34/B04, full/partial, VOID harden
 escalation, dashboard) · ✅ billable-time → invoice · ✅ renewal-watch dashboard +
 revenue-at-risk · ✅ AR aging + automated dunning cadence (payment-promise snooze) ·
 ✅ notification center (categorised inbox, per-user category mutes) ·
-✅ automation builder (WHEN/IF/DO: 7 events, notify/email/webhook, dry-run + run log).
-Open: CSAT.
+✅ automation builder (WHEN/IF/DO: 8 events, notify/email/webhook, dry-run + run log) ·
+✅ CSAT (survey on resolve, public page, low-score escalation, 90-day rollup).
 
 **Phase 4 — intelligence & polish**
 ✅ Explainable client health score · ✅ JFMCSS Pulse / Next Best Action · ✅ reports
