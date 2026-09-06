@@ -144,9 +144,10 @@ Deployed to `https://control.jfmcss.com` (Traefik + ACME).
 ✅ versioned migrations · ✅ standard API envelope (`{data}` / `{error:{code,message}}`,
 `ok()`/`fail()` in `lib/http`, all 30 routes + 5 frontend callers) · ✅ `Origin` CSRF check ·
 ✅ pool error handler · ✅ lock ticket/project numbering · ✅ `updated_at` triggers ·
-✅ outbound timeouts.
-Open: Zod payload schemas · centralized client-scope helper + isolation test suite ·
-notification outbox (async) + session pruning · storage interface.
+✅ outbound timeouts · 🔧 Zod validation (`lib/schema` + `parseBody`, wired into invoice
+& payment routes; remaining routes pending).
+Open: Zod on the rest of the routes · centralized client-scope helper + isolation test
+suite · notification outbox (async) + session pruning · storage interface.
 
 **Phase 2 — revenue core**
 Proposals (schema, PDF, secure accept/reject link, convert → opportunity WON →
