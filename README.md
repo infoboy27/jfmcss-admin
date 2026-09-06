@@ -13,7 +13,9 @@ Operations OS for JFMCSS: CRM + sales + projects + fiscal billing + collections 
 - Payment registration updates invoice balances/status automatically.
 - Support tickets with priority-based SLA, conversation history, internal-note-ready model and billable minutes.
 - Asset/renewal watch for domains, SSL, cloud, servers, licenses and SaaS.
-- In-app, SMTP email and Meta WhatsApp notification adapters.
+- In-app, SMTP email and Meta WhatsApp notification adapters, with a categorised
+  per-user notification center (unread counts, filters, bulk mark-read) and
+  per-user category mutes.
 - Daily protected cron endpoint for overdue invoices, due-soon reminders, renewals and SLA risk.
 - e-CF provider adapter that is disabled until valid DGII authorization/provider credentials are configured.
 - User/RBAC administration, fiscal/SLA settings APIs and audit trail.
@@ -120,6 +122,6 @@ never blocks an invoice/payment/ticket request.
 - Support: `/api/tickets`, `/api/tickets/:id/messages`
 - Assets: `/api/assets`
 - Documents: `/api/documents`, `/api/documents/:id/download`
-- Communications: `/api/notifications`
+- Communications: `/api/notifications` (`?filter=unread&category=`, PATCH marks by `id`/`ids[]`/`{all,category}`), `/api/notifications/prefs`
 - Administration: `/api/users`, `/api/settings`, `/api/audit`, `/api/automations`
 - Operations: `/api/cron/daily`, `/api/health`
