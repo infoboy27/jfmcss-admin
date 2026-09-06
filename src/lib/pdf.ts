@@ -88,7 +88,8 @@ async function newCtx(): Promise<Ctx> {
 export async function invoicePdf(invoice: any, items: any[]) {
   const ctx = await newCtx();
   const { page, regular, bold } = ctx;
-  let y = header(ctx, "FACTURA", invoice.number || "");
+  const kind = invoice.document_kind === "CREDIT_NOTE" ? "NOTA DE CRÉDITO" : "FACTURA";
+  let y = header(ctx, kind, invoice.number || "");
   page.drawText("CLIENTE", { x: 42, y, size: 8, font: bold, color: CY.blue });
   page.drawText(invoice.client_name || "", { x: 42, y: y - 18, size: 14, font: bold, color: CY.navy });
   page.drawText(`RNC/Cédula: ${invoice.tax_id || "N/D"}`, { x: 42, y: y - 34, size: 9, font: regular, color: CY.muted });

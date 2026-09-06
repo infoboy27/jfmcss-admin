@@ -76,7 +76,7 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 
 | # | Finding |
 |---|---------|
-| M1 | `/api/invoices/[id]` `VOID` does not check the invoice isn't already `PAID`/settled, and there is **no credit-note flow** — voiding an issued fiscal document is not how DGII expects corrections to be handled. |
+| M1 | ✅ VOID now refused for paid or NCF-issued invoices; `POST /api/invoices/[id]/credit-note` issues an E34/B04 credit note (proportional subtotal/ITBIS split, full or partial, tracks `credited_amount`). |
 | M2 | Uploaded files trust the client-supplied `file.type`; no magic-byte sniffing. Downloads are `attachment` + CSP so XSS risk is low, but validation should not rely on the client. |
 | M3 | `/api/documents/[id]/download` does `Response.redirect(d.url)` for non-`local:` URLs. No INSERT path creates remote URLs yet, but the column allows them — validate scheme/host before ever redirecting (SSRF/open-redirect defense-in-depth). |
 | M4 | ✅ `cron/daily` now routes every reminder through `notifyInAppOnce` (20h dedup window); due-soon emails are queued, not re-sent inline. |
