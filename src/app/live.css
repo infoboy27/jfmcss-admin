@@ -56,3 +56,12 @@
 .audit-detail-meta b{color:#cfd8e6}
 .audit-detail h4{font-size:10px;color:#7d8aa2;margin:14px 0 6px;text-transform:uppercase;letter-spacing:.05em}
 .audit-json{background:#080c15;border:1px solid var(--line);border-radius:9px;padding:12px;font:11px/1.5 'JetBrains Mono',monospace;color:#9fb0c8;overflow:auto;max-height:280px;white-space:pre-wrap;word-break:break-word}
+.form-error{color:#ff8f9f;font-size:11px;margin:2px 0}
+.link-btn{background:0;border:0;color:#67d8f7;cursor:pointer;font-size:11px;padding:0}
+.mfa-card p{font-size:10.5px;color:#8492a8;line-height:1.55;margin:8px 0}
+.mfa-card input{width:100%;border:1px solid var(--line2);background:#080c15;color:#dfe6f1;border-radius:8px;padding:9px 10px;font-size:12px;margin:8px 0}
+.mfa-card .primary-btn,.mfa-card .secondary-btn{width:100%;margin-top:4px}
+.mfa-secret{display:block;font:600 15px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#8ee7ff;background:#080c15;border:1px solid var(--line);border-radius:8px;padding:11px;text-align:center;margin:8px 0}
+.mfa-uri{font:10px 'JetBrains Mono',monospace;color:#5f6d85;word-break:break-all}
+.mfa-backup{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0}
+.mfa-backup code{font:600 11px 'JetBrains Mono',monospace;color:#c9d6e6;background:#080c15;border:1px solid var(--line);border-radius:6px;padding:7px;text-align:center}

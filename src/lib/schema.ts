@@ -265,6 +265,7 @@ export const userUpdateSchema = z.object({
   active: z.boolean().optional(),
   clientId: optId,
   password: z.union([z.string().min(10).max(500), z.literal("")]).optional(),
+  resetMfa: z.boolean().optional(),
 });
 const automationEvent = z.enum([
   "invoice.created",

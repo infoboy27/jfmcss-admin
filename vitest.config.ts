@@ -1,6 +1,11 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  resolve: {
+    // Mirror tsconfig `paths` so integration tests can import route handlers.
+    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+  },
   test: {
     // *.test.ts run everywhere; *.itest.ts self-skip unless DATABASE_URL is set.
     include: ["tests/**/*.{test,itest}.ts"],
