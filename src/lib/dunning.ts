@@ -103,9 +103,15 @@ export async function runDunning(actorId: string | null = null): Promise<Dunning
     }
 
     const done: string[] = (inv.dunning_log || []).map((d: any) => d.step);
-    // Fire the latest due step that hasn't run yet (don't spam every backlog step at once).
+    // Highest-offset step already sent — earlier steps behind it are superseded,
+    // never re-fired. We only advance forward through the cadence.
+    const sentOffsets = done
+      .map((k) => cfg.steps.find((s) => s.key === k)?.offset)
+      .filter((n): n is number => typeof n === "number");
+    const maxSent = sentOffsets.length ? Math.max(...sentOffsets) : -Infinity;
+    // Fire the latest due step that hasn't run yet and sits ahead of the cadence.
     const pending = cfg.steps
-      .filter((s) => overdueDays >= s.offset && !done.includes(s.key))
+      .filter((s) => overdueDays >= s.offset && !done.includes(s.key) && s.offset > maxSent)
       .sort((a, b) => b.offset - a.offset);
     const step = pending[0];
     if (!step) continue;
