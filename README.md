@@ -16,6 +16,10 @@ Operations OS for JFMCSS: CRM + sales + projects + fiscal billing + collections 
 - In-app, SMTP email and Meta WhatsApp notification adapters, with a categorised
   per-user notification center (unread counts, filters, bulk mark-read) and
   per-user category mutes.
+- WHEN/IF/DO automation engine: domain events (invoice created/paid, payment
+  received, ticket created/resolved, proposal accepted, client created) →
+  condition match → notify / email / webhook (webhook has an SSRF guard). Rule
+  builder with dry-run preview and an execution log.
 - Daily protected cron endpoint for overdue invoices, due-soon reminders, renewals and SLA risk.
 - e-CF provider adapter that is disabled until valid DGII authorization/provider credentials are configured.
 - User/RBAC administration, fiscal/SLA settings APIs and audit trail.
@@ -123,5 +127,6 @@ never blocks an invoice/payment/ticket request.
 - Assets: `/api/assets`
 - Documents: `/api/documents`, `/api/documents/:id/download`
 - Communications: `/api/notifications` (`?filter=unread&category=`, PATCH marks by `id`/`ids[]`/`{all,category}`), `/api/notifications/prefs`
-- Administration: `/api/users`, `/api/settings`, `/api/audit`, `/api/automations`
+- Administration: `/api/users`, `/api/settings`, `/api/audit`
+- Automations: `/api/automations` (rules + run log + catalog), `/api/automations/:id`, `/api/automations/test` (dry run)
 - Operations: `/api/cron/daily`, `/api/health`

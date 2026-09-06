@@ -12,8 +12,8 @@ the plan to take it to production. It is updated as items are resolved.
 _Started as a ~15 % prototype. After the ownership pass it is a **working
 revenue-and-service operations core**, deployed at `https://control.jfmcss.com`._
 
-**Done (Phase 0–3 + collections + notification center, ~40 commits, CI green
-incl. a DB integration job):**
+**Done (Phase 0–3 + collections + notification center + automation engine,
+~45 commits, CI green incl. a DB integration job):**
 security hardening (headers/CSP-nonce, login rate limit, Origin guard) ·
 versioned migrations (advisory-locked runner) · standard API envelope + Zod on
 every mutation route · centralized client-scope guard · notification outbox +
@@ -22,10 +22,11 @@ every mutation route · centralized client-scope guard · notification outbox +
 50/75/90/100 % alerts, escalation) · **billable time → invoice** · health score ·
 JFMCSS Pulse · reports + renewal watch · global search · **AR aging + automated
 dunning cadence** (payment-promise snooze) · **notification center** (categorised
-inbox, per-user mutes) · 59 unit + 10 integration tests.
+inbox, per-user mutes) · **automation engine** (WHEN/IF/DO, notify/email/webhook,
+SSRF-guarded, dry-run + run log) · 62 unit + 17 integration tests.
 
-**Still to build:** automation builder · CSAT · audit UI · MFA · design-system
-extraction · accessibility · pagination · client-portal shell. See §3–4.
+**Still to build:** CSAT · audit UI · MFA · design-system extraction ·
+accessibility · pagination · client-portal shell. See §3–4.
 
 What is genuinely solid:
 
@@ -129,7 +130,7 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 | Assets / infrastructure | Partial | Asset CRUD + days-to-renewal. No secret-manager references, no dependency graph. |
 | Renewal Watch | ✅ | `GET /api/reports/renewals` — 7/30/60/90-day windows with count + revenue, overdue count, revenue-at-risk; Servicios & activos page leads with it + CSV. |
 | Notifications center | ✅ v1 | `notifications.category` + `notification_prefs` (migration 0009). `GET /api/notifications` returns `{notifications, unreadCount, unreadByCategory, prefs}` with `?filter=unread&category=&before=`; PATCH marks by `id`/`ids[]`/`{all,category}`. `/api/notifications/prefs` for per-user category mutes — a muted category is never written to that user's inbox (guarded in the INSERT). Comunicaciones page: filter chips with unread tallies, mark-all(-category), relative time, category dots, preferences modal; sidebar unread badge. Per-user email/WhatsApp opt-out is stored but not yet enforced (staff email paths don't map to a user). |
-| Automation builder (WHEN/IF/DO) | **Missing** | `automation_rules` table exists; no engine, no UI. |
+| Automation builder (WHEN/IF/DO) | ✅ v1 | `src/lib/automations.ts` — 7 domain events (invoice.created/paid, payment.received, ticket.created/resolved, proposal.accepted, client.created), flat-AND conditions with `{{field}}` templating, actions notify/email/webhook. Webhook SSRF guard resolves DNS and blocks private/loopback/link-local/CGNAT/metadata. `fireAutomations` wired at each emit point (fire-and-forget, never breaks the request). `automation_runs` execution log (migration 0010, pruned >60d by daily cron), shown on the page. API: GET returns `{automations, runs, catalog}`; POST validates via discriminated union; PATCH/DELETE `[id]`; `POST /api/automations/test` dry-runs an unsaved rule. Not yet: OR groups, `task`/field-set actions, scheduled/time-based triggers. |
 | Documents | Partial | Upload/download/delete with auth. No S3 abstraction, no versioning, weak type validation. |
 | Client portal | Partial | `CLIENT` role sees scoped data + own pulse/health. Still needs its own shell (not the admin workspace) and polish. |
 | Reports | 🔧 v1 | `/api/reports/revenue` (6-month billed vs collected, MRR/ARR, collection rate) + `/api/reports/ar` + support quality, all with CSV. Reportes page rebuilt. Missing: revenue-by-client, margin-by-project, sales cycle, renewals. |
@@ -170,12 +171,13 @@ idempotent cycle billing · ✅ credit notes (E34/B04, full/partial, VOID harden
 ✅ SLA engine (first-response + resolution, pausable clock, 50/75/90/100 % alerts,
 escalation, dashboard) · ✅ billable-time → invoice · ✅ renewal-watch dashboard +
 revenue-at-risk · ✅ AR aging + automated dunning cadence (payment-promise snooze) ·
-✅ notification center (categorised inbox, per-user category mutes).
+✅ notification center (categorised inbox, per-user category mutes) ·
+✅ automation builder (WHEN/IF/DO: 7 events, notify/email/webhook, dry-run + run log).
 Open: CSAT.
 
 **Phase 4 — intelligence & polish**
 ✅ Explainable client health score · ✅ JFMCSS Pulse / Next Best Action · ✅ reports
-module (CSV export) · ✅ global search · automation builder · audit UI ·
+module (CSV export) · ✅ global search · ✅ automation builder · audit UI ·
 design-system extraction + `LiveControl` breakup · accessibility pass · MFA for admins.
 
 **Phase 5 — operations**
