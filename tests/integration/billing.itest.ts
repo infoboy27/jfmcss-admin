@@ -9,6 +9,7 @@ import { hasDb, pool, migrate, reset, makeClient } from "./setup";
 import { allocateFiscalNumber } from "../../src/lib/fiscal";
 import { runRecurringBilling } from "../../src/lib/recurring";
 import { convertProposal } from "../../src/lib/proposals";
+import { invoiceSupportTime } from "../../src/lib/support-billing";
 
 const d = hasDb ? describe : describe.skip;
 
@@ -116,6 +117,36 @@ d("proposal → project conversion", () => {
     expect(Number(inv[0].tax)).toBe(9000);
 
     await expect(convertProposal(prop.rows[0].id, null, { note: null, createInitialInvoice: false })).rejects.toThrow(/convertida/);
+  });
+});
+
+d("billable support → invoice", () => {
+  it("rolls unbilled time into one invoice, stamps the entries, and won't double-bill", async () => {
+    const clientId = await makeClient();
+    const t = await pool.query<{ id: string }>(
+      `INSERT INTO tickets(number,client_id,subject,description,priority)
+       VALUES ('SUP-2026-00001',$1,'Bug','...','HIGH') RETURNING id`,
+      [clientId],
+    );
+    await pool.query(
+      `INSERT INTO ticket_time_entries(ticket_id,minutes,billable) VALUES ($1,45,true),($1,75,true),($1,30,false)`,
+      [t.rows[0].id],
+    );
+
+    const first = await invoiceSupportTime(clientId, null, { hourlyRate: 2000, issue: true, perTicket: false });
+    expect(first.minutes).toBe(120); // only the billable 45 + 75
+    expect(first.billedEntries).toBe(2);
+    // 2h @ 2000 = 4000 subtotal, +18% = 4720
+    expect(Number(first.invoice.subtotal)).toBe(4000);
+    expect(Number(first.invoice.total)).toBe(4720);
+    expect(first.invoice.source).toBe("SUPPORT");
+    expect(first.invoice.ncf).toMatch(/^E31/);
+
+    // Entries are now stamped — a second run finds nothing.
+    await expect(invoiceSupportTime(clientId, null, {})).rejects.toThrow(/sin facturar/i);
+
+    const { rows } = await pool.query(`SELECT count(*)::int n FROM ticket_time_entries WHERE invoice_id IS NOT NULL`);
+    expect(rows[0].n).toBe(2);
   });
 });
 

@@ -2,19 +2,10 @@ import { requireUser } from "@/lib/auth";
 import { nextHumanNumber, query, tx } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { notifyInApp, sendEmail } from "@/lib/notifications";
-import { apiError, ok, fail, optionalText, numberValue } from "@/lib/http";
+import { apiError, ok, fail, optionalText } from "@/lib/http";
 import { assertClientAccess, resolveClientId } from "@/lib/scope";
 import { parseBody, ticketCreateSchema } from "@/lib/schema";
-
-const DEFAULT_SLA_HOURS: Record<string, number> = { LOW: 48, MEDIUM: 24, HIGH: 8, URGENT: 2 };
-
-async function slaHoursFor(priority: string): Promise<number> {
-  const { rows } = await query<{ value: Record<string, unknown> }>(
-    `SELECT value FROM settings WHERE key='sla'`,
-  );
-  const configured = numberValue(rows[0]?.value?.[priority]);
-  return configured > 0 ? configured : DEFAULT_SLA_HOURS[priority] ?? 24;
-}
+import { slaConfig, addHours, slaSnapshot, type Priority } from "@/lib/sla";
 
 export async function GET() {
   try {
@@ -25,9 +16,9 @@ export async function GET() {
       where = "WHERE t.client_id=$1";
       p.push(user.clientId);
     }
-    const { rows } = await query(
+    const { rows } = await query<Record<string, unknown>>(
       `SELECT t.*,c.name client_name,p.name project_name,u.name assignee_name,
-              CASE WHEN t.sla_due_at<now() AND t.status NOT IN ('RESOLVED','CLOSED') THEN true ELSE false END sla_breached
+              (t.resolution_due_at < now() AND t.status NOT IN ('RESOLVED','CLOSED')) sla_breached
          FROM tickets t
          JOIN clients c ON c.id=t.client_id
          LEFT JOIN projects p ON p.id=t.project_id
@@ -38,7 +29,7 @@ export async function GET() {
         LIMIT 500`,
       p,
     );
-    return ok({ tickets: rows });
+    return ok({ tickets: rows.map((t) => ({ ...t, sla: slaSnapshot(t as never) })) });
   } catch (e) {
     return apiError(e);
   }
@@ -52,8 +43,11 @@ export async function POST(request: Request) {
     const { subject, description } = b;
     if (!clientId) return fail("VALIDATION", "Cliente requerido", 400);
     assertClientAccess(user, clientId);
-    const priority = b.priority ?? "MEDIUM";
-    const slaHours = await slaHoursFor(priority);
+    const priority = (b.priority ?? "MEDIUM") as Priority;
+    const targets = (await slaConfig())[priority];
+    const now = new Date();
+    const firstResponseDue = addHours(now, targets.firstResponse).toISOString();
+    const resolutionDue = addHours(now, targets.resolution).toISOString();
 
     // Number allocation + both inserts share one transaction so concurrent
     // ticket creation can't collide on the unique `number`.
@@ -61,8 +55,9 @@ export async function POST(request: Request) {
       const number = await nextHumanNumber(c, "SUP", "tickets");
       const { rows } = await c.query<Record<string, unknown> & { id: string }>(
         `INSERT INTO tickets
-           (number,client_id,project_id,subject,description,priority,category,assignee_id,requester_email,sla_due_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now()+($10||' hours')::interval)
+           (number,client_id,project_id,subject,description,priority,category,assignee_id,requester_email,
+            sla_due_at,first_response_due_at,resolution_due_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$11,$10,$11)
          RETURNING *`,
         [
           number,
@@ -74,7 +69,8 @@ export async function POST(request: Request) {
           b.category ?? "GENERAL",
           optionalText(b.assigneeId, 50),
           optionalText(b.requesterEmail, 254) || user.email,
-          slaHours,
+          firstResponseDue,
+          resolutionDue,
         ],
       );
       await c.query(

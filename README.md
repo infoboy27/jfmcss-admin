@@ -77,13 +77,15 @@ safe to call repeatedly.
 | Endpoint | Cadence | Purpose |
 |---|---|---|
 | `POST /api/cron/notifications` | every 1–2 min | drain the email/WhatsApp outbox (retries with backoff) |
+| `POST /api/cron/sla` | every 5–15 min | SLA threshold alerts (50/75/90/100 %), escalation, breach flags |
 | `POST /api/cron/recurring` | once per day | issue invoices for recurring services whose next date has arrived (idempotent) |
-| `POST /api/cron/daily` | once per day | overdue invoices, due-soon reminders, renewals, SLA risk, session pruning |
+| `POST /api/cron/daily` | once per day | overdue invoices, due-soon reminders, renewals, session pruning |
 
 ```bash
-* * * * *   curl -fsS -X POST https://control.example.com/api/cron/notifications -H "Authorization: Bearer $CRON_SECRET"
-30 6 * * *  curl -fsS -X POST https://control.example.com/api/cron/recurring     -H "Authorization: Bearer $CRON_SECRET"
-15 6 * * *  curl -fsS -X POST https://control.example.com/api/cron/daily         -H "Authorization: Bearer $CRON_SECRET"
+* * * * *    curl -fsS -X POST https://control.example.com/api/cron/notifications -H "Authorization: Bearer $CRON_SECRET"
+*/10 * * * * curl -fsS -X POST https://control.example.com/api/cron/sla           -H "Authorization: Bearer $CRON_SECRET"
+30 6 * * *   curl -fsS -X POST https://control.example.com/api/cron/recurring     -H "Authorization: Bearer $CRON_SECRET"
+15 6 * * *   curl -fsS -X POST https://control.example.com/api/cron/daily         -H "Authorization: Bearer $CRON_SECRET"
 ```
 
 Outbound email/WhatsApp is queued, never sent inline — a slow or down provider

@@ -21,8 +21,9 @@ export async function reset() {
   // Order matters for FKs; TRUNCATE ... CASCADE handles the rest.
   await pool.query(`
     TRUNCATE users, sessions, clients, client_contacts, opportunities, projects, project_tasks,
-             invoices, invoice_items, payments, tickets, ticket_messages, assets, documents,
-             notifications, automation_rules, audit_log, proposals, proposal_items, proposal_milestones
+             invoices, invoice_items, payments, tickets, ticket_messages, ticket_time_entries,
+             assets, documents, notifications, automation_rules, audit_log,
+             proposals, proposal_items, proposal_milestones
       RESTART IDENTITY CASCADE
   `);
   await pool.query(`UPDATE fiscal_sequences SET next_number = 1`);

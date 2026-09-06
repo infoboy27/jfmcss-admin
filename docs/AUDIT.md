@@ -121,8 +121,8 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 | Dominican billing / NCF / e-CF | Partial | Sequence allocation + NCF on issue + e-CF adapter stub + ✅ credit notes (E34/B04). No sequence-exhaustion alerts, no e-CF XML. |
 | Invoice / proposal / receipt PDFs | Partial | ✅ invoice + ✅ proposal + ✅ credit-note PDFs (shared template, dd/mm/yyyy). No receipt / statement templates. WinAnsi fonts. |
 | Payments / AR / aging | Partial | Payment registration + balance recompute. No aging report, no collections cadence, no receipt PDF. |
-| Support / Help Desk / SLA | Partial | Tickets + threads + `sla_due_at` + billable minutes. No first-response SLA, no 50/75/90/100% alerts, no escalation, no CSAT. |
-| Billable support → invoice | **Missing** | Minutes are recorded; nothing rolls them into an invoice. |
+| Support / Help Desk / SLA | ✅ v1 | first-response + resolution targets (config `sla_v2`), pausable clock (WAITING_CLIENT), 50/75/90/100 % alerts + escalation via `/api/cron/sla`, breach flags, dashboard (compliance %, avg times). No CSAT. |
+| Billable support → invoice | ✅ | `ticket_time_entries` + `/api/tickets/[id]/time`; `/api/support/unbilled` groups by client; `/api/support/invoice` rolls it into one invoice at the configured rate and stamps the entries (no double-billing). |
 | Assets / infrastructure | Partial | Asset CRUD + days-to-renewal. No secret-manager references, no dependency graph. |
 | Renewal Watch | **Missing** as a surface | Cron notifies; no 7/30/60/90 dashboard, no "revenue at risk". |
 | Notifications center | **Missing** | Rows are written; no unified center, no per-user preferences. |
@@ -163,10 +163,10 @@ project + opportunity WON + optional deposit invoice) · ✅ recurring services 
 idempotent cycle billing · ✅ credit notes (E34/B04, full/partial, VOID hardening).
 Open: receipt/statement PDFs · AR aging + collections cadence · billable-time → invoice.
 
-**Phase 3 — service core**
-SLA engine (first-response + resolution targets, 50/75/90/100 % alerts,
-escalation) · billable-time → invoice · CSAT · renewal-watch dashboard +
-revenue-at-risk · notification center + preferences.
+**Phase 3 — service core (in progress)**
+✅ SLA engine (first-response + resolution, pausable clock, 50/75/90/100 % alerts,
+escalation, dashboard) · ✅ billable-time → invoice.
+Open: CSAT · renewal-watch dashboard + revenue-at-risk · notification center + preferences · AR aging + collections.
 
 **Phase 4 — intelligence & polish**
 Explainable client health score · JFMCSS Pulse / Next Best Action · reports module
