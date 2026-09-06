@@ -29,8 +29,12 @@ services:
       BOOTSTRAP_ADMIN_PASSWORD: change-me-now
       BOOTSTRAP_ADMIN_NAME: JFMCSS Admin
       CRON_SECRET: local-dev-secret
+      UPLOAD_DIR: /app/data/uploads
     ports:
       - "3000:3000"
+    volumes:
+      - jfmcss_uploads:/app/data/uploads
 
 volumes:
   jfmcss_pg:
+  jfmcss_uploads:
