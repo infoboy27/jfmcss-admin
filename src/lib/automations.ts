@@ -2,6 +2,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { query } from "./db";
 import { sendEmail, notifyInApp } from "./notifications";
+import { log } from "./log";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -325,7 +326,7 @@ export async function runAutomations(event: string, payload: Record<string, unkn
 /** Never let an automation failure surface in the triggering request. */
 export function fireAutomations(event: string, payload: Record<string, unknown>): void {
   void runAutomations(event, payload).catch((err) => {
-    console.error(`[automations] ${event} failed:`, (err as Error).message);
+    log.error("automation dispatch failed", err, { event });
   });
 }
 

@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 export { text, optionalText, numberValue, dateValue } from "./validate";
 export { ApiError, apiFail } from "./errors";
 import { ApiError } from "./errors";
+import { recordApiResponse } from "./metrics";
+import { log } from "./log";
 
 /**
  * Standard API envelope.
@@ -15,10 +17,13 @@ import { ApiError } from "./errors";
  */
 export function ok<T>(data: T, init?: number | ResponseInit) {
   const responseInit = typeof init === "number" ? { status: init } : init;
+  const status = typeof init === "number" ? init : ((init as ResponseInit | undefined)?.status ?? 200);
+  recordApiResponse(status);
   return NextResponse.json({ data }, responseInit);
 }
 
 export function fail(code: string, message: string, status = 400, headers?: HeadersInit) {
+  recordApiResponse(status);
   return NextResponse.json({ error: { code, message } }, { status, headers });
 }
 
@@ -54,7 +59,7 @@ export function apiError(error: unknown) {
 
   const status = typeof e?.status === "number" ? e.status : 500;
   if (status >= 500) {
-    console.error("[api] unhandled error", error);
+    log.error("unhandled API error", error);
     return fail("INTERNAL", "Error interno", status);
   }
   return fail("BAD_REQUEST", e?.message || "Solicitud inválida", status);

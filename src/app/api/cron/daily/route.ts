@@ -4,6 +4,8 @@ import { ok, apiError } from "@/lib/http";
 import { assertCronAuth } from "@/lib/cron";
 import { refreshHealth } from "@/lib/health";
 import { runDunning } from "@/lib/dunning";
+import { log } from "@/lib/log";
+import { inc } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -99,7 +101,7 @@ export async function POST(request: Request) {
     const healthUpdated = await refreshHealth();
     const dunning = await runDunning();
 
-    return ok({
+    const summary = {
       sessionsPruned: pruned.rowCount ?? 0,
       overdue: overdue.length,
       dueSoon: dueSoon.length,
@@ -107,8 +109,12 @@ export async function POST(request: Request) {
       slaRisk: sla.length,
       healthUpdated,
       dunning,
-    });
+    };
+    inc("jfmcss_cron_runs_total", { job: "daily", outcome: "ok" });
+    log.info("cron job finished", { job: "daily", ...summary });
+    return ok(summary);
   } catch (e) {
+    inc("jfmcss_cron_runs_total", { job: "daily", outcome: "error" });
     return apiError(e);
   }
 }

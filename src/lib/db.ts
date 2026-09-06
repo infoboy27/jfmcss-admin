@@ -1,4 +1,5 @@
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
+import { log } from "./log";
 
 const globalPg = globalThis as unknown as { jfmcssPool?: Pool };
 
@@ -14,7 +15,7 @@ export const pool = globalPg.jfmcssPool ?? new Pool({
 // the connection) is emitted as an 'error' event with no listener and crashes
 // the process.
 if (!globalPg.jfmcssPool) {
-  pool.on("error", (err) => console.error("[db] idle client error", err));
+  pool.on("error", (err) => log.error("pg idle client error", err, { component: "db" }));
 }
 
 globalPg.jfmcssPool = pool;

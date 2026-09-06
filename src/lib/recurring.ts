@@ -3,6 +3,7 @@ import { calculateInvoice } from "./billing";
 import { allocateFiscalNumber } from "./fiscal";
 import { sendEmail } from "./notifications";
 import { audit } from "./audit";
+import { log } from "./log";
 
 const CYCLE_MONTHS: Record<string, number> = {
   MONTHLY: 1,
@@ -149,7 +150,7 @@ export async function runRecurringBilling(actorId: string | null = null): Promis
       }
     } catch (err) {
       result.errors++;
-      console.error("[recurring] failed for asset", svc.id, err);
+      log.error("recurring billing failed for asset", err, { assetId: svc.id });
     }
   }
 

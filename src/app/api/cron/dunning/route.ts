@@ -1,5 +1,5 @@
 import { apiError, ok } from "@/lib/http";
-import { assertCronAuth } from "@/lib/cron";
+import { assertCronAuth, runCronJob } from "@/lib/cron";
 import { runDunning } from "@/lib/dunning";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
     assertCronAuth(request);
-    return ok(await runDunning());
+    return ok(await runCronJob("dunning", () => runDunning()));
   } catch (e) {
     return apiError(e);
   }

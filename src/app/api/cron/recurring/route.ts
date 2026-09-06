@@ -1,5 +1,5 @@
 import { apiError, ok } from "@/lib/http";
-import { assertCronAuth } from "@/lib/cron";
+import { assertCronAuth, runCronJob } from "@/lib/cron";
 import { runRecurringBilling } from "@/lib/recurring";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
     assertCronAuth(request);
-    return ok(await runRecurringBilling());
+    return ok(await runCronJob("recurring", () => runRecurringBilling()));
   } catch (e) {
     return apiError(e);
   }

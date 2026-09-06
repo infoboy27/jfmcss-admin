@@ -1,5 +1,5 @@
 import { apiError, ok } from "@/lib/http";
-import { assertCronAuth } from "@/lib/cron";
+import { assertCronAuth, runCronJob } from "@/lib/cron";
 import { deliverPendingNotifications } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +16,7 @@ export async function POST(request: Request) {
   try {
     assertCronAuth(request);
     const batch = Number(process.env.NOTIFICATION_BATCH || 50);
-    const result = await deliverPendingNotifications(batch);
-    return ok(result);
+    return ok(await runCronJob("notifications", () => deliverPendingNotifications(batch)));
   } catch (e) {
     return apiError(e);
   }
