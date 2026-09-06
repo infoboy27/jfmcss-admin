@@ -9,8 +9,21 @@ the plan to take it to production. It is updated as items are resolved.
 
 ## 1. Executive summary
 
-JFMCSS Control today is a **well-structured MVP**, not the operations OS described
-in the product brief. Roughly **15–20%** of the target scope exists.
+_Started as a ~15 % prototype. After the ownership pass it is a **working
+revenue-and-service operations core**, deployed at `https://control.jfmcss.com`._
+
+**Done (Phase 0–3, ~35 commits, CI green incl. a DB integration job):**
+security hardening (headers/CSP-nonce, login rate limit, Origin guard) ·
+versioned migrations · standard API envelope + Zod on every mutation route ·
+centralized client-scope guard · notification outbox + 4 crons · **proposals**
+(PDF + public accept link + one-tx conversion) · **recurring services** · **credit
+notes** · **SLA engine** (pausable clock, 50/75/90/100 % alerts, escalation) ·
+**billable time → invoice** · 54 tests (49 unit + 5 integration).
+
+**Still to build:** health score · JFMCSS Pulse / Next-Best-Action · reports ·
+renewal-watch dashboard · notification center UI · automation builder · global
+search · AR aging + collections · CSAT · MFA · design-system extraction ·
+accessibility · pagination. See §3–4.
 
 What is genuinely solid:
 
@@ -27,21 +40,9 @@ What is genuinely solid:
   configuration" instead of crashing.
 - The `LiveControl` workspace is wired to real APIs end to end.
 
-What it is not yet:
-
-- ~~No proposals/quotes, no recurring-service billing~~ (both shipped v1), no automation builder, no
-  reports module, no real health score, no "JFMCSS Pulse", no renewal-watch
-  dashboard, no notification center, no global search, no MFA, no credit notes.
-- No automated tests for the money- and access-critical paths.
-- No versioned migrations, no CSRF defense, notifications block the request
-  thread, several number generators still race.
-- `AdminApp.tsx` was a dead hardcoded mock (removed).
-
-**Update (ownership pass in progress):** the entire "not yet" list above except the
-product modules has been addressed — migrations, envelope + Zod, CSRF/Origin guard,
-notification outbox, race-safe numbering, centralized client scope, 41 tests, deployed
-to `https://control.jfmcss.com`. Remaining: the product modules (proposals, recurring
-billing, reports, …) and the DB-backed integration test suite.
+Remaining gaps are the **intelligence layer** (health score, Pulse, reports,
+automation builder, search) and **polish** (design system, client-portal shell,
+accessibility, MFA, pagination) — the money and service cycles work today.
 
 ---
 
@@ -65,7 +66,7 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 | # | Finding | Status |
 |---|---------|--------|
 | H1 | **No CSRF / Origin defense.** JSON routes are largely protected by `SameSite=lax` + non-simple content type, but `/api/documents` POST accepts `multipart/form-data`, which an auto-submitting cross-site form can send with the victim's cookie. | ✅ `src/proxy.ts` rejects any state-changing request whose `Origin` isn't this host. |
-| H2 | **No automated tests** for authentication, RBAC, cross-client isolation, invoice math, NCF concurrency, payment reconciliation, recurring-invoice idempotency, SLA, file authorization, proposal conversion — the exact list the brief calls out. | 🔧 41 unit tests: invoice math, rate limiter, validators, envelope, Zod schemas, client-scope guard. DB-backed integration suite (concurrency, reconciliation) still to build. |
+| H2 | **No automated tests** for authentication, RBAC, cross-client isolation, invoice math, NCF concurrency, payment reconciliation, recurring-invoice idempotency, SLA, file authorization, proposal conversion — the exact list the brief calls out. | ✅ 54 tests. Unit: invoice math, rate limiter, validators, envelope, Zod schemas, client-scope guard, SLA snapshot. Integration (real Postgres in CI): fiscal-sequence 25-way concurrency, recurring idempotency, proposal conversion, payment reconciliation, support-time billing. HTTP-layer auth/RBAC E2E still worth adding. |
 | H3 | `nextHumanNumber()` (tickets, projects) reads `MAX(number)` then `+1` with **no lock/transaction** → concurrent creation collides on the unique index. Invoice numbering was fixed; these were not. | ✅ takes a transaction advisory lock; ticket/project creation runs allocation + insert in one `tx()`. |
 | H4 | Notifications (`sendEmail`, `sendWhatsApp`) are **awaited inside the request handler** — a slow SMTP host stalls invoice/payment/ticket responses. | ✅ `sendEmail`/`sendWhatsApp` now only write a PENDING outbox row; `/api/cron/notifications` delivers with backoff + `FOR UPDATE SKIP LOCKED`. |
 | H5 | Cross-client isolation is enforced by ~12 hand-copied `if (role==='CLIENT' && x.client_id!==user.clientId)` checks. One omission = an IDOR. | ✅ centralized in `src/lib/scope.ts` (`assertClientAccess`/`clientScope`/`resolveClientId`), applied to the detail/mutation routes, 10 unit tests. Query-layer default-scoping still worth adding. |
