@@ -10,7 +10,14 @@ export const pool = globalPg.jfmcssPool ?? new Pool({
   ssl: process.env.PG_SSL === "true" ? { rejectUnauthorized: false } : undefined,
 });
 
-if (process.env.NODE_ENV !== "production") globalPg.jfmcssPool = pool;
+// Without this handler an error on an *idle* pooled client (e.g. the DB closing
+// the connection) is emitted as an 'error' event with no listener and crashes
+// the process.
+if (!globalPg.jfmcssPool) {
+  pool.on("error", (err) => console.error("[db] idle client error", err));
+}
+
+globalPg.jfmcssPool = pool;
 
 export async function query<T extends QueryResultRow = QueryResultRow>(text: string, params: unknown[] = []) {
   return pool.query<T>(text, params);
@@ -36,13 +43,27 @@ export function money(value: unknown): number {
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
 }
 
-export async function nextHumanNumber(prefix: string, table: "invoices" | "tickets" | "projects") {
+const NUMBER_COLUMN = { invoices: "number", tickets: "number", projects: "code" } as const;
+
+/**
+ * Allocates the next `PREFIX-YEAR-00001` human identifier for a table.
+ *
+ * MUST be called inside a `tx()` and paired with the INSERT that consumes the
+ * number in the same transaction: it takes a transaction-scoped advisory lock so
+ * two concurrent creators can't read the same MAX and collide on the unique
+ * index. The lock is released automatically at COMMIT/ROLLBACK.
+ */
+export async function nextHumanNumber(
+  client: PoolClient,
+  prefix: string,
+  table: keyof typeof NUMBER_COLUMN,
+) {
+  const column = NUMBER_COLUMN[table];
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`jfmcss-number-${table}`]);
   const year = new Date().getFullYear();
-  const column = table === "tickets" ? "number" : table === "projects" ? "code" : "number";
-  const pattern = `${prefix}-${year}-%`;
-  const { rows } = await query<{ value: string }>(
+  const { rows } = await client.query<{ value: string }>(
     `SELECT ${column} AS value FROM ${table} WHERE ${column} LIKE $1 ORDER BY ${column} DESC LIMIT 1`,
-    [pattern],
+    [`${prefix}-${year}-%`],
   );
   const last = rows[0]?.value?.split("-").at(-1);
   const next = (Number(last) || 0) + 1;

@@ -14,7 +14,30 @@ import { NextResponse, type NextRequest } from "next/server";
  *
  * (Next 16 renamed the `middleware` convention to `proxy`.)
  */
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/**
+ * Same-origin check for state-changing requests. The session cookie is
+ * `SameSite=lax`, which already blocks most cross-site sends, but form-encoded
+ * and multipart POSTs (e.g. the document upload) can still be driven by an
+ * auto-submitting cross-site form. Reject anything whose `Origin` isn't us.
+ */
+function isCrossSiteWrite(request: NextRequest): boolean {
+  if (SAFE_METHODS.has(request.method)) return false;
+  const origin = request.headers.get("origin");
+  if (!origin) return false; // non-CORS clients (curl, server-to-server, cron) send none
+  try {
+    return new URL(origin).host !== request.headers.get("host");
+  } catch {
+    return true;
+  }
+}
+
 export function proxy(request: NextRequest) {
+  if (isCrossSiteWrite(request)) {
+    return NextResponse.json({ error: "Origen no permitido" }, { status: 403 });
+  }
+
   const nonce = btoa(`${crypto.randomUUID()}${crypto.randomUUID()}`);
   const isProd = process.env.NODE_ENV === "production";
 

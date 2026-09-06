@@ -1,10 +1,113 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { nextHumanNumber, query } from "@/lib/db";
-import { apiError, optionalText, text } from "@/lib/http";
+import { nextHumanNumber, query, tx } from "@/lib/db";
+import { apiError, numberValue, optionalText, text } from "@/lib/http";
 import { audit } from "@/lib/audit";
 import { notifyInApp, sendEmail } from "@/lib/notifications";
 
-const SLA_HOURS: Record<string,number>={LOW:48,MEDIUM:24,HIGH:8,URGENT:2};
-export async function GET(){try{const user=await requireUser();const p:unknown[]=[];let where='';if(user.role==='CLIENT'){where='WHERE t.client_id=$1';p.push(user.clientId)}const{rows}=await query(`SELECT t.*,c.name client_name,p.name project_name,u.name assignee_name,CASE WHEN t.sla_due_at<now() AND t.status NOT IN ('RESOLVED','CLOSED') THEN true ELSE false END sla_breached FROM tickets t JOIN clients c ON c.id=t.client_id LEFT JOIN projects p ON p.id=t.project_id LEFT JOIN users u ON u.id=t.assignee_id ${where} ORDER BY CASE t.priority WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END,t.created_at DESC LIMIT 500`,p);return NextResponse.json({tickets:rows})}catch(e){return apiError(e)}}
-export async function POST(request:Request){try{const user=await requireUser();const b=await request.json();const clientId=user.role==='CLIENT'?user.clientId:text(b.clientId,50);const subject=text(b.subject,250),description=text(b.description,10000);if(!clientId||!subject||!description)return NextResponse.json({error:'Cliente, asunto y descripción requeridos'},{status:400});const priority=(text(b.priority,20)||'MEDIUM').toUpperCase();const number=await nextHumanNumber('SUP','tickets');const slaHours=SLA_HOURS[priority]||24;const{rows}=await query<any>(`INSERT INTO tickets(number,client_id,project_id,subject,description,priority,category,assignee_id,requester_email,sla_due_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,now()+($10||' hours')::interval) RETURNING *`,[number,clientId,optionalText(b.projectId,50),subject,description,priority,text(b.category,50)||'GENERAL',optionalText(b.assigneeId,50),optionalText(b.requesterEmail,254)||user.email,slaHours]);await query(`INSERT INTO ticket_messages(ticket_id,author_id,author_name,body,internal) VALUES($1,$2,$3,$4,false)`,[rows[0].id,user.id,user.name,description]);const admins=await query<{id:string;email:string}>(`SELECT id,email FROM users WHERE active=true AND role IN ('SUPER_ADMIN','ADMIN','SUPPORT')`);await Promise.all(admins.rows.map(a=>notifyInApp(a.id,`Nuevo ticket ${number}`,`${priority} · ${subject}`,clientId,{ticketId:rows[0].id})));if(priority==='URGENT')await Promise.all(admins.rows.map(a=>sendEmail(a.email,`[URGENTE] ${number} · ${subject}`,`<p>${description}</p><p>Cliente: ${clientId}</p>`,clientId).catch(()=>null)));await audit(user.id,'CREATE','TICKET',rows[0].id,rows[0]);return NextResponse.json({ticket:rows[0]},{status:201})}catch(e){return apiError(e)}}
+const DEFAULT_SLA_HOURS: Record<string, number> = { LOW: 48, MEDIUM: 24, HIGH: 8, URGENT: 2 };
+
+async function slaHoursFor(priority: string): Promise<number> {
+  const { rows } = await query<{ value: Record<string, unknown> }>(
+    `SELECT value FROM settings WHERE key='sla'`,
+  );
+  const configured = numberValue(rows[0]?.value?.[priority]);
+  return configured > 0 ? configured : DEFAULT_SLA_HOURS[priority] ?? 24;
+}
+
+export async function GET() {
+  try {
+    const user = await requireUser();
+    const p: unknown[] = [];
+    let where = "";
+    if (user.role === "CLIENT") {
+      where = "WHERE t.client_id=$1";
+      p.push(user.clientId);
+    }
+    const { rows } = await query(
+      `SELECT t.*,c.name client_name,p.name project_name,u.name assignee_name,
+              CASE WHEN t.sla_due_at<now() AND t.status NOT IN ('RESOLVED','CLOSED') THEN true ELSE false END sla_breached
+         FROM tickets t
+         JOIN clients c ON c.id=t.client_id
+         LEFT JOIN projects p ON p.id=t.project_id
+         LEFT JOIN users u ON u.id=t.assignee_id
+         ${where}
+        ORDER BY CASE t.priority WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END,
+                 t.created_at DESC
+        LIMIT 500`,
+      p,
+    );
+    return NextResponse.json({ tickets: rows });
+  } catch (e) {
+    return apiError(e);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const user = await requireUser();
+    const b = await request.json().catch(() => ({}));
+    const clientId = user.role === "CLIENT" ? user.clientId : text(b.clientId, 50);
+    const subject = text(b.subject, 250);
+    const description = text(b.description, 10000);
+    if (!clientId || !subject || !description) {
+      return NextResponse.json({ error: "Cliente, asunto y descripción requeridos" }, { status: 400 });
+    }
+    const priority = (text(b.priority, 20) || "MEDIUM").toUpperCase();
+    const slaHours = await slaHoursFor(priority);
+
+    // Number allocation + both inserts share one transaction so concurrent
+    // ticket creation can't collide on the unique `number`.
+    const ticket = await tx(async (c) => {
+      const number = await nextHumanNumber(c, "SUP", "tickets");
+      const { rows } = await c.query<Record<string, unknown> & { id: string }>(
+        `INSERT INTO tickets
+           (number,client_id,project_id,subject,description,priority,category,assignee_id,requester_email,sla_due_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now()+($10||' hours')::interval)
+         RETURNING *`,
+        [
+          number,
+          clientId,
+          optionalText(b.projectId, 50),
+          subject,
+          description,
+          priority,
+          text(b.category, 50) || "GENERAL",
+          optionalText(b.assigneeId, 50),
+          optionalText(b.requesterEmail, 254) || user.email,
+          slaHours,
+        ],
+      );
+      await c.query(
+        `INSERT INTO ticket_messages(ticket_id,author_id,author_name,body,internal) VALUES($1,$2,$3,$4,false)`,
+        [rows[0].id, user.id, user.name, description],
+      );
+      return rows[0];
+    });
+
+    const admins = await query<{ id: string; email: string }>(
+      `SELECT id,email FROM users WHERE active=true AND role IN ('SUPER_ADMIN','ADMIN','SUPPORT')`,
+    );
+    await Promise.all(
+      admins.rows.map((a) =>
+        notifyInApp(a.id, `Nuevo ticket ${ticket.number}`, `${priority} · ${subject}`, clientId, { ticketId: ticket.id }),
+      ),
+    );
+    if (priority === "URGENT") {
+      await Promise.all(
+        admins.rows.map((a) =>
+          sendEmail(
+            a.email,
+            `[URGENTE] ${ticket.number} · ${subject}`,
+            `<p>${description}</p><p>Cliente: ${clientId}</p>`,
+            clientId,
+          ).catch(() => null),
+        ),
+      );
+    }
+    await audit(user.id, "CREATE", "TICKET", ticket.id, ticket);
+    return NextResponse.json({ ticket }, { status: 201 });
+  } catch (e) {
+    return apiError(e);
+  }
+}
