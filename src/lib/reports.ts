@@ -126,6 +126,46 @@ export async function revenueReport(user: SessionUser, from: string, to: string)
   };
 }
 
+/** Open invoices with their collections/dunning state, worst first. */
+export async function collectionsReport(user: SessionUser) {
+  const s = clientScope(user, "i.client_id");
+  const { rows } = await query<any>(
+    `SELECT i.id, i.number, i.ncf, i.total, i.paid_amount, i.due_date, i.status,
+            i.promise_date, i.promise_note, i.dunning_log,
+            c.id client_id, c.name client_name, c.email client_email,
+            (CURRENT_DATE - i.due_date)::int overdue_days
+       FROM invoices i JOIN clients c ON c.id = i.client_id
+      ${s.where ? s.where + " AND" : "WHERE"} i.document_kind = 'INVOICE'
+        AND i.status IN ('ISSUED','PARTIAL','OVERDUE')
+      ORDER BY i.due_date NULLS LAST
+      LIMIT 200`,
+    s.params,
+  );
+  const num = (v: any) => Math.round((Number(v) || 0) * 100) / 100;
+  return {
+    invoices: rows.map((r) => {
+      const log = Array.isArray(r.dunning_log) ? r.dunning_log : [];
+      const last = log[log.length - 1] ?? null;
+      return {
+        id: r.id,
+        number: r.number,
+        ncf: r.ncf,
+        clientId: r.client_id,
+        client: r.client_name,
+        clientEmail: r.client_email,
+        balance: num(Number(r.total) - Number(r.paid_amount)),
+        dueDate: r.due_date,
+        overdueDays: r.overdue_days,
+        status: r.status,
+        promiseDate: r.promise_date,
+        promiseNote: r.promise_note,
+        lastReminder: last ? { step: last.step, at: last.sentAt } : null,
+        remindersSent: log.length,
+      };
+    }),
+  };
+}
+
 /** Renewal watch: what renews in 7/30/60/90 days and the revenue at stake. */
 export async function renewalWatch(user: SessionUser) {
   const s = clientScope(user, "a.client_id");

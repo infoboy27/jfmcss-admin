@@ -10,6 +10,7 @@ import { allocateFiscalNumber } from "../../src/lib/fiscal";
 import { runRecurringBilling } from "../../src/lib/recurring";
 import { convertProposal } from "../../src/lib/proposals";
 import { invoiceSupportTime } from "../../src/lib/support-billing";
+import { runDunning } from "../../src/lib/dunning";
 
 const d = hasDb ? describe : describe.skip;
 
@@ -147,6 +148,43 @@ d("billable support → invoice", () => {
 
     const { rows } = await pool.query(`SELECT count(*)::int n FROM ticket_time_entries WHERE invoice_id IS NOT NULL`);
     expect(rows[0].n).toBe(2);
+  });
+});
+
+d("dunning cadence", () => {
+  it("fires one reminder step per run and pauses on a payment promise", async () => {
+    const clientId = await makeClient("Moroso SRL");
+    await pool.query(`UPDATE clients SET email='pagos@moroso.test' WHERE id=$1`, [clientId]);
+    // Overdue by 8 days → the -3, +1 and +7 steps are all "due".
+    await pool.query(
+      `INSERT INTO invoices(client_id,number,status,total,due_date,ncf,document_kind)
+       VALUES ($1,'FAC-2026-00050','OVERDUE',10000,CURRENT_DATE - 8,'E310000000050','INVOICE')`,
+      [clientId],
+    );
+
+    const r1 = await runDunning();
+    expect(r1.remindersSent).toBe(1); // only the latest due step, not all three
+
+    const r2 = await runDunning();
+    expect(r2.remindersSent).toBe(0); // that step is recorded, nothing new is due
+
+    // Log records exactly one step.
+    let { rows } = await pool.query(`SELECT dunning_log FROM invoices WHERE number='FAC-2026-00050'`);
+    expect(rows[0].dunning_log).toHaveLength(1);
+
+    // A future promise pauses the sequence even when a new step becomes due.
+    await pool.query(`UPDATE invoices SET promise_date = CURRENT_DATE + 10 WHERE number='FAC-2026-00050'`);
+    await pool.query(`UPDATE invoices SET due_date = CURRENT_DATE - 20 WHERE number='FAC-2026-00050'`);
+    const r3 = await runDunning();
+    expect(r3.skippedPromise).toBe(1);
+    expect(r3.remindersSent).toBe(0);
+
+    // Once the promise + grace has passed, dunning resumes.
+    await pool.query(`UPDATE invoices SET promise_date = CURRENT_DATE - 5 WHERE number='FAC-2026-00050'`);
+    const r4 = await runDunning();
+    expect(r4.remindersSent).toBe(1);
+    ({ rows } = await pool.query(`SELECT dunning_log FROM invoices WHERE number='FAC-2026-00050'`));
+    expect(rows[0].dunning_log.length).toBe(2);
   });
 });
 

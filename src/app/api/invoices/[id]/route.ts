@@ -2,7 +2,7 @@ import { requireUser } from "@/lib/auth";
 import { query, tx } from "@/lib/db";
 import { allocateFiscalNumber, submitEcf } from "@/lib/fiscal";
 import { audit } from "@/lib/audit";
-import { apiError, ok, fail, text } from "@/lib/http";
+import { apiError, ok, fail, text, dateValue, optionalText } from "@/lib/http";
 import { assertClientAccess } from "@/lib/scope";
 
 export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){try{const user=await requireUser();const{id}=await params;const inv=await query<any>(`SELECT i.*,c.name client_name,c.tax_id,c.email client_email FROM invoices i JOIN clients c ON c.id=i.client_id WHERE i.id=$1`,[id]);if(!inv.rows[0])return fail("NOT_FOUND", 'No encontrada', 404);assertClientAccess(user, inv.rows[0].client_id);const items=await query(`SELECT * FROM invoice_items WHERE invoice_id=$1 ORDER BY position`,[id]);const payments=await query(`SELECT * FROM payments WHERE invoice_id=$1 ORDER BY paid_at DESC`,[id]);const notes=await query(`SELECT id,number,ncf,total,reason,created_at FROM invoices WHERE references_invoice_id=$1 ORDER BY created_at`,[id]);return ok({invoice:inv.rows[0],items:items.rows,payments:payments.rows,creditNotes:notes.rows})}catch(e){return apiError(e)}}
@@ -11,4 +11,11 @@ export async function PATCH(request:Request,{params}:{params:Promise<{id:string}
   if(before.status==='PAID'||Number(before.paid_amount)>0)return fail("INVALID_STATE","No se puede anular una factura con pagos. Emite una nota de crédito.",409);
   if(before.status!=='DRAFT'&&before.ncf)return fail("INVALID_STATE","Una factura emitida con NCF debe corregirse con una nota de crédito, no anularse.",409);
   const{rows}=await query(`UPDATE invoices SET status='VOID',updated_at=now() WHERE id=$1 RETURNING *`,[id]);await audit(user.id,'VOID','INVOICE',id,rows[0],before);return ok({invoice:rows[0]})}
+if(action==='PROMISE'){
+  const pd=dateValue(b.promiseDate);if(!pd)return fail("VALIDATION",'Fecha de promesa inválida (YYYY-MM-DD)',400);
+  const{rows}=await query(`UPDATE invoices SET promise_date=$2,promise_note=$3,updated_at=now() WHERE id=$1 RETURNING *`,[id,pd,optionalText(b.note,1000)]);
+  await audit(user.id,'PROMISE','INVOICE',id,{promiseDate:pd,note:b.note});return ok({invoice:rows[0]})}
+if(action==='CLEAR_PROMISE'){
+  const{rows}=await query(`UPDATE invoices SET promise_date=NULL,promise_note=NULL,updated_at=now() WHERE id=$1 RETURNING *`,[id]);
+  await audit(user.id,'CLEAR_PROMISE','INVOICE',id);return ok({invoice:rows[0]})}
 return fail("VALIDATION", 'Acción no soportada', 400)}catch(e){return apiError(e)}}

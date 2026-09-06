@@ -3,6 +3,7 @@ import { notifyInAppOnce, sendEmail } from "@/lib/notifications";
 import { ok, apiError } from "@/lib/http";
 import { assertCronAuth } from "@/lib/cron";
 import { refreshHealth } from "@/lib/health";
+import { runDunning } from "@/lib/dunning";
 
 export const dynamic = "force-dynamic";
 
@@ -94,6 +95,7 @@ export async function POST(request: Request) {
     }
 
     const healthUpdated = await refreshHealth();
+    const dunning = await runDunning();
 
     return ok({
       sessionsPruned: pruned.rowCount ?? 0,
@@ -102,6 +104,7 @@ export async function POST(request: Request) {
       renewals: renewals.length,
       slaRisk: sla.length,
       healthUpdated,
+      dunning,
     });
   } catch (e) {
     return apiError(e);
