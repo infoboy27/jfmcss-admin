@@ -1,0 +1,54 @@
+import { NextResponse, type NextRequest } from "next/server";
+
+/**
+ * Per-request Content-Security-Policy with a fresh nonce.
+ *
+ * Next.js injects its bootstrap/hydration <script> tags inline, so a static
+ * `script-src 'self'` breaks hydration. Generating a nonce here and echoing it
+ * in both the CSP and the `x-nonce` request header lets Next tag its own inline
+ * scripts with it; `strict-dynamic` then trusts anything they load. The rest of
+ * the security headers live in next.config.ts.
+ *
+ * `style-src` keeps `'unsafe-inline'`: the UI relies on React inline `style`
+ * props (progress bars, sparklines) and there is no nonce plumbing for styles.
+ *
+ * (Next 16 renamed the `middleware` convention to `proxy`.)
+ */
+export function proxy(request: NextRequest) {
+  const nonce = btoa(`${crypto.randomUUID()}${crypto.randomUUID()}`);
+  const isProd = process.env.NODE_ENV === "production";
+
+  const csp = [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' https://fonts.gstatic.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${isProd ? "" : "'unsafe-eval'"}`.trim(),
+    "connect-src 'self'",
+    "form-action 'self'",
+    ...(isProd ? ["upgrade-insecure-requests"] : []),
+  ].join("; ");
+
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.set("Content-Security-Policy", csp);
+  return response;
+}
+
+export const config = {
+  // Run on every route except Next's static assets and common file assets.
+  matcher: [
+    {
+      source: "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico)$).*)",
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" },
+      ],
+    },
+  ],
+};
