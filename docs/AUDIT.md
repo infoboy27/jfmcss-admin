@@ -26,8 +26,7 @@ inbox, per-user mutes) · **automation engine** (WHEN/IF/DO, notify/email/webhoo
 SSRF-guarded, dry-run + run log) · **CSAT** (survey on resolve, public page,
 low-score escalation) · 62 unit + 22 integration tests.
 
-**Still to build:** audit UI · MFA · design-system extraction ·
-accessibility · pagination · client-portal shell. See §3–4.
+**Still to build:** design-system extraction · accessibility · client-portal shell. See §3–4.
 
 What is genuinely solid:
 
@@ -44,9 +43,10 @@ What is genuinely solid:
   configuration" instead of crashing.
 - The `LiveControl` workspace is wired to real APIs end to end.
 
-Remaining gaps are the **intelligence layer** (health score, Pulse, reports,
-automation builder, search) and **polish** (design system, client-portal shell,
-accessibility, MFA, pagination) — the money and service cycles work today.
+The intelligence layer (health score, Pulse, reports, automation builder,
+search) and security polish (MFA, audit UI, pagination) are done. Remaining
+**polish**: design-system extraction + `LiveControl` breakup, a dedicated
+client-portal shell, an accessibility pass.
 
 ---
 
@@ -87,7 +87,7 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 | M4 | ✅ `cron/daily` now routes every reminder through `notifyInAppOnce` (20h dedup window); due-soon emails are queued, not re-sent inline. |
 | M5 | ✅ `updated_at` triggers on every table with the column (migration 0002). |
 | M6 | ✅ `lib/health.ts` — explainable score from overdue invoices, urgent tickets, ticket frequency, SLA breaches, late projects, inactivity, payment timeliness, renewals; returns weighted `factors[]` with the *why*. `GET /api/clients/[id]/health`, recomputed nightly. |
-| M7 | No pagination — every list route is a hard `LIMIT 250/500` and the client renders all rows. Won't scale past a few hundred records. |
+| M7 | ✅ Offset pagination (`?limit=&offset=`) on clients/invoices/tickets/payments/audit via `src/lib/pagination.ts`; envelope carries `{total,hasMore}`. Default page size kept at the old cap so nothing regressed; the Auditoría page uses load-more. UI "load more" for the other lists still pending. |
 | M8 | Money is JS `number` end to end. `calculateInvoice` now rounds every step; other paths (dashboard sums, `paid_amount`) rely on Postgres `numeric`, which is fine, but the boundary is inconsistent. |
 | M9 | ✅ `ticketMessageSchema` caps `billableMinutes` at 24h. |
 | M10 | `submitEcf` failure still leaves the invoice `ISSUED` with an allocated NCF (`ecf_status='FAILED'`). For real e-CF this is a business decision that must be made explicitly. |
@@ -138,7 +138,7 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 | Reports | 🔧 v1 | `/api/reports/revenue` (6-month billed vs collected, MRR/ARR, collection rate) + `/api/reports/ar` + support quality, all with CSV. Reportes page rebuilt. Missing: revenue-by-client, margin-by-project, sales cycle, renewals. |
 | Executive dashboard / Pulse / Next Best Action | ✅ v1 | `lib/pulse.ts` + `GET /api/pulse` — prioritised feed (overdue invoices, SLA risk, renewals ≤14d, stale proposals, late projects, at-risk clients) with RD$ at stake, sorted by (priority, impact); shown on the dashboard, each item jumps to its module. |
 | Global search (⌘K) | ✅ | `GET /api/search` across clients, contacts, projects, invoices/credit-notes, tickets, proposals, assets (CLIENT-scoped); ⌘K palette in the workspace with arrow-key nav. Jumps to the module (per-record deep-link is a follow-up). |
-| Security (MFA, rate limiting, headers, audit UI) | Partial | Headers + login rate limiting added here. No MFA, no audit UI. |
+| Security (MFA, rate limiting, headers, audit UI) | ✅ v1 | Headers/CSP-nonce + login rate limiting + Origin guard. **TOTP MFA** (migration 0012, `src/lib/totp.ts`, opt-in per user, 2-step login, one-time backup codes, SUPER_ADMIN reset). **Auditoría page** — filters (entity/action/date/search), facets, pagination, before/after JSON drawer. |
 | Audit log | Partial | Written for most mutations; no filterable UI, no diff view. |
 | Migrations / backups / observability | **Missing** | See M11, H6. |
 
@@ -175,12 +175,13 @@ escalation, dashboard) · ✅ billable-time → invoice · ✅ renewal-watch das
 revenue-at-risk · ✅ AR aging + automated dunning cadence (payment-promise snooze) ·
 ✅ notification center (categorised inbox, per-user category mutes) ·
 ✅ automation builder (WHEN/IF/DO: 8 events, notify/email/webhook, dry-run + run log) ·
-✅ CSAT (survey on resolve, public page, low-score escalation, 90-day rollup).
+✅ CSAT (survey on resolve, public page, low-score escalation, 90-day rollup) ·
+✅ Auditoría page (filters + before/after drawer) · ✅ TOTP MFA (opt-in) · ✅ offset pagination.
 
 **Phase 4 — intelligence & polish**
 ✅ Explainable client health score · ✅ JFMCSS Pulse / Next Best Action · ✅ reports
-module (CSV export) · ✅ global search · ✅ automation builder · audit UI ·
-design-system extraction + `LiveControl` breakup · accessibility pass · MFA for admins.
+module (CSV export) · ✅ global search · ✅ automation builder · ✅ audit UI ·
+✅ MFA (TOTP, opt-in) · ✅ offset pagination · design-system extraction + `LiveControl` breakup · accessibility pass.
 
 **Phase 5 — operations**
 Structured logging + metrics · backup/restore runbook · deployment docs · load test.
