@@ -1,37 +1,56 @@
+# Local / single-host development stack.
+# Copy .env.example to .env and set real values before `docker compose up`.
 services:
   db:
     image: postgres:17-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: jfmcss
-      POSTGRES_USER: jfmcss
-      POSTGRES_PASSWORD: jfmcss
+      POSTGRES_DB: ${POSTGRES_DB:-jfmcss}
+      POSTGRES_USER: ${POSTGRES_USER:-jfmcss}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    # Bind to loopback only; never expose Postgres on 0.0.0.0.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - jfmcss_pg:/var/lib/postgresql/data
-      - ./db/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+      - ./db:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U jfmcss -d jfmcss"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jfmcss} -d ${POSTGRES_DB:-jfmcss}"]
       interval: 5s
       timeout: 3s
       retries: 20
 
   app:
     build: .
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://jfmcss:jfmcss@db:5432/jfmcss
-      APP_URL: http://localhost:3000
-      SESSION_DAYS: 7
-      BOOTSTRAP_ADMIN_EMAIL: admin@jfmcss.com
-      BOOTSTRAP_ADMIN_PASSWORD: change-me-now
-      BOOTSTRAP_ADMIN_NAME: JFMCSS Admin
-      CRON_SECRET: local-dev-secret
+      DATABASE_URL: postgresql://${POSTGRES_USER:-jfmcss}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-jfmcss}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      SESSION_DAYS: ${SESSION_DAYS:-7}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:?set BOOTSTRAP_ADMIN_EMAIL in .env}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?set BOOTSTRAP_ADMIN_PASSWORD in .env}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-JFMCSS Admin}
+      CRON_SECRET: ${CRON_SECRET:?set CRON_SECRET in .env}
       UPLOAD_DIR: /app/data/uploads
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-15}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-JFMCSS <notificaciones@jfmcss.com>}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_DEFAULT_COUNTRY_CODE: ${WHATSAPP_DEFAULT_COUNTRY_CODE:-1}
+      ECF_ENABLED: ${ECF_ENABLED:-false}
+      ECF_PROVIDER_URL: ${ECF_PROVIDER_URL:-}
+      ECF_PROVIDER_TOKEN: ${ECF_PROVIDER_TOKEN:-}
+      ECF_RNC: ${ECF_RNC:-}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
     volumes:
       - jfmcss_uploads:/app/data/uploads
 
