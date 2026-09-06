@@ -81,6 +81,11 @@ docker compose -p jfmcss-admin \
 ```
 
 Health probes: `GET /api/health` (liveness), `GET /api/health/ready` (DB + schema).
+Metrics: `GET /api/metrics` (Prometheus text; bearer `METRICS_TOKEN`).
+Logs are structured JSON lines to stdout/stderr (`LOG_LEVEL`).
+
+See [`docs/RUNBOOK.md`](docs/RUNBOOK.md) for deploy, metrics/alerts, backup
+(`ops/backup.sh`) and restore (`ops/restore.sh`).
 
 ## Scheduled jobs
 

@@ -12,9 +12,9 @@ the plan to take it to production. It is updated as items are resolved.
 _Started as a ~15 % prototype. After the ownership pass it is a **working
 revenue-and-service operations core**, deployed at `https://control.jfmcss.com`._
 
-**Done (Phase 0–4: collections, notification center, automation engine, CSAT,
-audit UI, TOTP MFA, pagination, client-portal skin — ~55 commits, CI green
-incl. a DB integration job):**
+**Done (Phase 0–5: collections, notification center, automation engine, CSAT,
+audit UI, TOTP MFA, pagination, client-portal skin, structured logging +
+Prometheus metrics, backup/restore + runbook — ~58 commits, CI green):**
 security hardening (headers/CSP-nonce, login rate limit, Origin guard) ·
 versioned migrations (advisory-locked runner) · standard API envelope + Zod on
 every mutation route · centralized client-scope guard · notification outbox +
@@ -26,7 +26,8 @@ dunning cadence** (payment-promise snooze) · **notification center** (categoris
 inbox, per-user mutes) · **automation engine** (WHEN/IF/DO, notify/email/webhook,
 SSRF-guarded, dry-run + run log) · **CSAT** (survey on resolve, public page,
 low-score escalation) · **audit UI** · **TOTP MFA** (opt-in) · **offset pagination** ·
-**client-portal skin** + a11y pass · ~70 unit + ~25 integration tests.
+**client-portal skin** + a11y pass · **structured logging + Prometheus `/api/metrics`** ·
+**backup/restore scripts + runbook** · magic-byte upload check · ~75 unit + ~25 integration tests.
 
 **Still to build:** design-system extraction + a full `LiveControl` breakup (best done in a focused session with visual review — the file is only ~300 lines today so the ROI is modest). See §3–4.
 
@@ -45,10 +46,11 @@ What is genuinely solid:
   configuration" instead of crashing.
 - The `LiveControl` workspace is wired to real APIs end to end.
 
-The intelligence layer (health score, Pulse, reports, automation builder,
-search) and security polish (MFA, audit UI, pagination) are done. Remaining
-**polish**: a design-system extraction + full `LiveControl` breakup (modest
-ROI at ~300 lines; flagged for a focused visual-review session).
+The intelligence layer, security polish (MFA, audit UI, pagination) and the
+operations pack (structured logging, Prometheus metrics wired into the 163
+monitoring stack, backup/restore + runbook) are done. Remaining: a design-system
+extraction + full `LiveControl` breakup (modest ROI at ~300 lines), off-box
+backup sync, a storage abstraction (S3/MinIO) for uploads, a load test.
 
 ---
 
@@ -84,7 +86,7 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 | # | Finding |
 |---|---------|
 | M1 | ✅ VOID now refused for paid or NCF-issued invoices; `POST /api/invoices/[id]/credit-note` issues an E34/B04 credit note (proportional subtotal/ITBIS split, full or partial, tracks `credited_amount`). |
-| M2 | Uploaded files trust the client-supplied `file.type`; no magic-byte sniffing. Downloads are `attachment` + CSP so XSS risk is low, but validation should not rely on the client. |
+| M2 | ✅ `src/lib/filetype.ts` sniffs magic bytes on upload — a file whose first bytes don't match its declared MIME (PDF/PNG/JPEG/WEBP/DOCX/XLSX; `text/plain` = no NUL) is rejected 415. |
 | M3 | `/api/documents/[id]/download` does `Response.redirect(d.url)` for non-`local:` URLs. No INSERT path creates remote URLs yet, but the column allows them — validate scheme/host before ever redirecting (SSRF/open-redirect defense-in-depth). |
 | M4 | ✅ `cron/daily` now routes every reminder through `notifyInAppOnce` (20h dedup window); due-soon emails are queued, not re-sent inline. |
 | M5 | ✅ `updated_at` triggers on every table with the column (migration 0002). |
@@ -111,7 +113,7 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 - Extract a real design system (Button, Input, Table, Modal, Drawer, Badge, KPI, EmptyState, Skeleton, Toast, CommandPalette…) and break up `LiveControl`.
 - Storage abstraction (`DocumentStore` interface) so local disk can be swapped for S3/MinIO without touching the modules.
 - Zod payload schemas at every route boundary (envelope done — see below).
-- Structured logging with a request id; `/metrics`; readiness already added.
+- ✅ Structured JSON logging (`src/lib/log.ts`) + `GET /api/metrics` (Prometheus, bearer `METRICS_TOKEN`, wired into the 163 monitoring stack). Readiness probe already present. A per-request id is still a nice-to-have.
 - Session cookie should rotate on privilege change; consider TOTP MFA for `SUPER_ADMIN`/`ADMIN`.
 
 ---
@@ -186,4 +188,8 @@ module (CSV export) · ✅ global search · ✅ automation builder · ✅ audit 
 ✅ MFA (TOTP, opt-in) · ✅ offset pagination · ✅ client-portal skin · ✅ accessibility pass v1 (dialog roles, Escape/click-out, aria-current, focus) · design-system extraction + full `LiveControl` breakup (deferred, low ROI).
 
 **Phase 5 — operations**
-Structured logging + metrics · backup/restore runbook · deployment docs · load test.
+✅ Structured logging + Prometheus `/api/metrics` (cron/outbox/AR/SLA/pool gauges) ·
+✅ `ops/backup.sh` + `ops/restore.sh` (pg_dump -Fc + uploads tar, retention) ·
+✅ `docs/RUNBOOK.md` (deploy, probes, alerts, incidents, restore drill).
+Open: off-box backup sync (documented, needs a destination) · load test · a
+per-request trace id · storage abstraction (S3/MinIO) for uploads.
