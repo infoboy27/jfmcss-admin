@@ -4,6 +4,7 @@ import { audit } from "@/lib/audit";
 import { apiError, ok, optionalText, numberValue, text } from "@/lib/http";
 import { parseBody, clientCreateSchema } from "@/lib/schema";
 import { fireAutomations } from "@/lib/automations";
+import { readPage, pageMeta } from "@/lib/pagination";
 
 export async function GET(request: Request) {
   try {
@@ -13,8 +14,13 @@ export async function GET(request: Request) {
       return ok({ clients: rows });
     }
     const url = new URL(request.url); const q = (url.searchParams.get("q") || "").trim();
-    const { rows } = await query(`SELECT c.*, (SELECT count(*) FROM projects p WHERE p.client_id=c.id) project_count,(SELECT coalesce(sum(recurring_revenue),0) FROM projects p WHERE p.client_id=c.id AND p.status='ACTIVE') mrr,(SELECT coalesce(sum(total-paid_amount),0) FROM invoices i WHERE i.client_id=c.id AND i.status IN ('ISSUED','PARTIAL','OVERDUE')) outstanding FROM clients c WHERE ($1='' OR c.name ILIKE '%'||$1||'%' OR coalesce(c.tax_id,'') ILIKE '%'||$1||'%' OR coalesce(c.email,'') ILIKE '%'||$1||'%') ORDER BY c.created_at DESC LIMIT 250`, [q]);
-    return ok({ clients: rows });
+    const page = readPage(request, { defaultLimit: 250, maxLimit: 500 });
+    const filter = `WHERE ($1='' OR c.name ILIKE '%'||$1||'%' OR coalesce(c.tax_id,'') ILIKE '%'||$1||'%' OR coalesce(c.email,'') ILIKE '%'||$1||'%')`;
+    const [res, count] = await Promise.all([
+      query(`SELECT c.*, (SELECT count(*) FROM projects p WHERE p.client_id=c.id) project_count,(SELECT coalesce(sum(recurring_revenue),0) FROM projects p WHERE p.client_id=c.id AND p.status='ACTIVE') mrr,(SELECT coalesce(sum(total-paid_amount),0) FROM invoices i WHERE i.client_id=c.id AND i.status IN ('ISSUED','PARTIAL','OVERDUE')) outstanding FROM clients c ${filter} ORDER BY c.created_at DESC LIMIT ${page.limit} OFFSET ${page.offset}`, [q]),
+      query<{ n: string }>(`SELECT count(*)::text n FROM clients c ${filter}`, [q]),
+    ]);
+    return ok({ clients: res.rows, ...pageMeta(res.rows.length, Number(count.rows[0].n), page) });
   } catch(error){ return apiError(error); }
 }
 

@@ -5,8 +5,9 @@ import { sendEmail } from "@/lib/notifications";
 import { apiError, ok } from "@/lib/http";
 import { parseBody, paymentCreateSchema } from "@/lib/schema";
 import { fireAutomations } from "@/lib/automations";
+import { readPage, pageMeta } from "@/lib/pagination";
 
-export async function GET(){try{const user=await requireUser();const p:unknown[]=[];let where='';if(user.role==='CLIENT'){where='WHERE pay.client_id=$1';p.push(user.clientId)}const{rows}=await query(`SELECT pay.*,c.name client_name,i.number invoice_number FROM payments pay JOIN clients c ON c.id=pay.client_id LEFT JOIN invoices i ON i.id=pay.invoice_id ${where} ORDER BY pay.paid_at DESC LIMIT 500`,p);return ok({payments:rows})}catch(e){return apiError(e)}}
+export async function GET(request:Request){try{const user=await requireUser();const p:unknown[]=[];let where='';if(user.role==='CLIENT'){where='WHERE pay.client_id=$1';p.push(user.clientId)}const page=readPage(request,{defaultLimit:500,maxLimit:1000});const[res,count]=await Promise.all([query(`SELECT pay.*,c.name client_name,i.number invoice_number FROM payments pay JOIN clients c ON c.id=pay.client_id LEFT JOIN invoices i ON i.id=pay.invoice_id ${where} ORDER BY pay.paid_at DESC LIMIT ${page.limit} OFFSET ${page.offset}`,p),query<{n:string}>(`SELECT count(*)::text n FROM payments pay ${where}`,p)]);return ok({payments:res.rows,...pageMeta(res.rows.length,Number(count.rows[0].n),page)})}catch(e){return apiError(e)}}
 
 export async function POST(request:Request){try{
   const user=await requireUser(['SUPER_ADMIN','ADMIN','FINANCE']);

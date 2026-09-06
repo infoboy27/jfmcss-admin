@@ -7,8 +7,9 @@ import { sendEmail } from "@/lib/notifications";
 import { apiError, ok, optionalText, dateValue } from "@/lib/http";
 import { parseBody, invoiceCreateSchema } from "@/lib/schema";
 import { fireAutomations } from "@/lib/automations";
+import { readPage, pageMeta } from "@/lib/pagination";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const user = await requireUser();
     const params: unknown[] = [];
@@ -17,17 +18,21 @@ export async function GET() {
       where = "WHERE i.client_id=$1";
       params.push(user.clientId);
     }
-    const { rows } = await query(
-      `SELECT i.*,c.name client_name,c.tax_id,c.email client_email,p.name project_name
-         FROM invoices i
-         JOIN clients c ON c.id=i.client_id
-         LEFT JOIN projects p ON p.id=i.project_id
-         ${where}
-        ORDER BY i.issue_date DESC,i.created_at DESC
-        LIMIT 500`,
-      params,
-    );
-    return ok({ invoices: rows });
+    const page = readPage(request, { defaultLimit: 500, maxLimit: 1000 });
+    const [rows, count] = await Promise.all([
+      query(
+        `SELECT i.*,c.name client_name,c.tax_id,c.email client_email,p.name project_name
+           FROM invoices i
+           JOIN clients c ON c.id=i.client_id
+           LEFT JOIN projects p ON p.id=i.project_id
+           ${where}
+          ORDER BY i.issue_date DESC,i.created_at DESC
+          LIMIT ${page.limit} OFFSET ${page.offset}`,
+        params,
+      ),
+      query<{ n: string }>(`SELECT count(*)::text n FROM invoices i ${where}`, params),
+    ]);
+    return ok({ invoices: rows.rows, ...pageMeta(rows.rows.length, Number(count.rows[0].n), page) });
   } catch (e) {
     return apiError(e);
   }

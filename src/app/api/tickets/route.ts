@@ -7,8 +7,9 @@ import { assertClientAccess, resolveClientId } from "@/lib/scope";
 import { parseBody, ticketCreateSchema } from "@/lib/schema";
 import { slaConfig, addHours, slaSnapshot, type Priority } from "@/lib/sla";
 import { fireAutomations } from "@/lib/automations";
+import { readPage, pageMeta } from "@/lib/pagination";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const user = await requireUser();
     const p: unknown[] = [];
@@ -17,20 +18,27 @@ export async function GET() {
       where = "WHERE t.client_id=$1";
       p.push(user.clientId);
     }
-    const { rows } = await query<Record<string, unknown>>(
-      `SELECT t.*,c.name client_name,p.name project_name,u.name assignee_name,
-              (t.resolution_due_at < now() AND t.status NOT IN ('RESOLVED','CLOSED')) sla_breached
-         FROM tickets t
-         JOIN clients c ON c.id=t.client_id
-         LEFT JOIN projects p ON p.id=t.project_id
-         LEFT JOIN users u ON u.id=t.assignee_id
-         ${where}
-        ORDER BY CASE t.priority WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END,
-                 t.created_at DESC
-        LIMIT 500`,
-      p,
-    );
-    return ok({ tickets: rows.map((t) => ({ ...t, sla: slaSnapshot(t as never) })) });
+    const page = readPage(request, { defaultLimit: 500, maxLimit: 1000 });
+    const [res, count] = await Promise.all([
+      query<Record<string, unknown>>(
+        `SELECT t.*,c.name client_name,p.name project_name,u.name assignee_name,
+                (t.resolution_due_at < now() AND t.status NOT IN ('RESOLVED','CLOSED')) sla_breached
+           FROM tickets t
+           JOIN clients c ON c.id=t.client_id
+           LEFT JOIN projects p ON p.id=t.project_id
+           LEFT JOIN users u ON u.id=t.assignee_id
+           ${where}
+          ORDER BY CASE t.priority WHEN 'URGENT' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END,
+                   t.created_at DESC
+          LIMIT ${page.limit} OFFSET ${page.offset}`,
+        p,
+      ),
+      query<{ n: string }>(`SELECT count(*)::text n FROM tickets t ${where}`, p),
+    ]);
+    return ok({
+      tickets: res.rows.map((t) => ({ ...t, sla: slaSnapshot(t as never) })),
+      ...pageMeta(res.rows.length, Number(count.rows[0].n), page),
+    });
   } catch (e) {
     return apiError(e);
   }

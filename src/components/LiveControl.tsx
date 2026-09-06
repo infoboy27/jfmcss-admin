@@ -5,21 +5,22 @@ import ProjectTasks from "./ProjectTasks";
 import SettingsPanel from "./SettingsPanel";
 
 type User={id:string;email:string;name:string;role:string;clientId:string|null};
-type Key='dashboard'|'clients'|'sales'|'proposals'|'projects'|'billing'|'payments'|'support'|'assets'|'notifications'|'automations'|'reports'|'settings';
+type Key='dashboard'|'clients'|'sales'|'proposals'|'projects'|'billing'|'payments'|'support'|'assets'|'notifications'|'automations'|'reports'|'audit'|'settings';
 type Row=Record<string,any>;
 const M=(v:any)=>`RD$${Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 const D=(v:any)=>v?new Date(v).toLocaleDateString('es-DO'):'—';
 const B=({v}:{v:any})=><span className={`live-badge ${String(v||'').toLowerCase().replaceAll('_','-')}`}>{String(v||'—').replaceAll('_',' ')}</span>;
 async function api(url:string,init?:RequestInit){const r=await fetch(url,{...init,headers:{'content-type':'application/json',...(init?.headers||{})}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d?.error?.message||d?.error||`HTTP ${r.status}`);return d?.data??d}
 
-const nav:[Key,string,string][]= [['dashboard','Centro de control','⌂'],['clients','Clientes','◉'],['sales','Ventas','↗'],['proposals','Propuestas','▧'],['projects','Proyectos','◇'],['billing','Facturación','▤'],['payments','Cobros','$'],['support','Soporte','◎'],['assets','Servicios & activos','▦'],['notifications','Comunicaciones','◌'],['automations','Automatizaciones','⚡'],['reports','Reportes','▥'],['settings','Configuración','⚙']];
+const nav:[Key,string,string][]= [['dashboard','Centro de control','⌂'],['clients','Clientes','◉'],['sales','Ventas','↗'],['proposals','Propuestas','▧'],['projects','Proyectos','◇'],['billing','Facturación','▤'],['payments','Cobros','$'],['support','Soporte','◎'],['assets','Servicios & activos','▦'],['notifications','Comunicaciones','◌'],['automations','Automatizaciones','⚡'],['reports','Reportes','▥'],['audit','Auditoría','▣'],['settings','Configuración','⚙']];
 const clientKeys=new Set<Key>(['dashboard','proposals','projects','billing','payments','support','assets','notifications','settings']);
-const endpoints:Record<Key,string|null>={dashboard:'/api/dashboard',clients:'/api/clients',sales:'/api/opportunities',proposals:'/api/proposals',projects:'/api/projects',billing:'/api/invoices',payments:'/api/payments',support:'/api/tickets',assets:'/api/assets',notifications:null,automations:'/api/automations',reports:'/api/dashboard',settings:null};
-const subtitles:Record<Key,string>={dashboard:'Lo que requiere atención hoy, en una sola vista.',clients:'Relación, facturación y soporte por cliente.',sales:'Pipeline y siguientes acciones.',proposals:'Cotizaciones, envío al cliente y conversión a proyecto.',projects:'Entrega, margen y recurrencia.',billing:'NCF/e-NCF, balances y PDFs JFMCSS.',payments:'Cobros y conciliación.',support:'Tickets, SLA y tiempo facturable.',assets:'Dominios, cloud, SSL, licencias y renovaciones.',notifications:'Bandeja de notificaciones y preferencias.',automations:'Reglas y tareas automáticas.',reports:'Indicadores operativos y financieros.',settings:'Cuenta, seguridad e integraciones.'};
+const adminOnlyKeys=new Set<Key>(['audit']);
+const endpoints:Record<Key,string|null>={dashboard:'/api/dashboard',clients:'/api/clients',sales:'/api/opportunities',proposals:'/api/proposals',projects:'/api/projects',billing:'/api/invoices',payments:'/api/payments',support:'/api/tickets',assets:'/api/assets',notifications:null,automations:'/api/automations',reports:'/api/dashboard',audit:null,settings:null};
+const subtitles:Record<Key,string>={dashboard:'Lo que requiere atención hoy, en una sola vista.',clients:'Relación, facturación y soporte por cliente.',sales:'Pipeline y siguientes acciones.',proposals:'Cotizaciones, envío al cliente y conversión a proyecto.',projects:'Entrega, margen y recurrencia.',billing:'NCF/e-NCF, balances y PDFs JFMCSS.',payments:'Cobros y conciliación.',support:'Tickets, SLA y tiempo facturable.',assets:'Dominios, cloud, SSL, licencias y renovaciones.',notifications:'Bandeja de notificaciones y preferencias.',automations:'Reglas y tareas automáticas.',reports:'Indicadores operativos y financieros.',audit:'Registro de acciones sensibles y quién las hizo.',settings:'Cuenta, seguridad e integraciones.'};
 
 export default function LiveControl({user}:{user:User}){
  const[active,setActive]=useState<Key>('dashboard'),[data,setData]=useState<any>(),[loading,setLoading]=useState(true),[error,setError]=useState(''),[modal,setModal]=useState<Key|null>(null),[tick,setTick]=useState(0),[q,setQ]=useState(''),[palette,setPalette]=useState(false),[notifUnread,setNotifUnread]=useState(0);
- const menu=useMemo(()=>nav.filter(([k])=>user.role!=='CLIENT'||clientKeys.has(k)),[user.role]);
+ const menu=useMemo(()=>nav.filter(([k])=>(user.role!=='CLIENT'||clientKeys.has(k))&&(!adminOnlyKeys.has(k)||['SUPER_ADMIN','ADMIN'].includes(user.role))),[user.role]);
  useEffect(()=>{const h=(e:KeyboardEvent)=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();setPalette(p=>!p)}if(e.key==='Escape')setPalette(false)};window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h)},[]);
  useEffect(()=>{let alive=true;const poll=()=>api('/api/notifications?filter=unread').then(r=>{if(alive)setNotifUnread(r.unreadCount||0)}).catch(()=>{});poll();const iv=setInterval(poll,60000);return()=>{alive=false;clearInterval(iv)}},[tick]);
  useEffect(()=>{let cancelled=false;const ep=endpoints[active];const t=setTimeout(()=>{if(cancelled)return;if(!ep){setLoading(false);setData(null);setError('');return}setLoading(true);setError('');api(ep+(active==='clients'&&q?`?q=${encodeURIComponent(q)}`:'')).then(d=>{if(!cancelled)setData(d)}).catch(e=>{if(!cancelled)setError(e.message)}).finally(()=>{if(!cancelled)setLoading(false)})},active==='clients'?200:0);return()=>{cancelled=true;clearTimeout(t)}},[active,tick,q]);
@@ -41,6 +42,7 @@ function View({k,d,user,refresh,go,onNotifCount}:{k:Key;d:any;user:User;refresh:
  if(k==='assets')return <Assets rows={d?.assets||[]}/>;
  if(k==='notifications')return <Notifications onCount={onNotifCount}/>;
  if(k==='automations')return <Automations d={d} refresh={refresh}/>;
+ if(k==='audit')return <AuditLog/>;
  return <Settings user={user}/>;
 }
 function Empty({t}:{t:string}){return <div className="live-empty">{t}</div>}
@@ -152,6 +154,30 @@ function NotifPrefs({prefs,close,saved}:{prefs:Row;close:()=>void;saved:()=>void
   {NOTIF_CATS.map(c=><label key={c} className="notif-pref-row"><span>{CAT_LABEL[c]}</span><input type="checkbox" checked={!muted.includes(c)} onChange={()=>toggle(c)}/><small>{muted.includes(c)?'Silenciada':'Activa'}</small></label>)}
   <button className="primary-btn" disabled={busy} onClick={save}>Guardar</button>
  </div></Modal>;
+}
+function AuditLog(){
+ const[rows,setRows]=useState<Row[]>([]),[meta,setMeta]=useState<Row>({}),[facets,setFacets]=useState<Row>({entityTypes:[],actions:[]}),[f,setF]=useState<Row>({entityType:'',action:'',q:'',since:''}),[loading,setLoading]=useState(true),[sel,setSel]=useState<Row|null>(null);
+ const qs=(offset:number)=>{const s=new URLSearchParams();if(f.entityType)s.set('entityType',f.entityType);if(f.action)s.set('action',f.action);if(f.q)s.set('q',f.q);if(f.since)s.set('since',f.since);s.set('limit','50');s.set('offset',String(offset));return s.toString()};
+ const load=(offset=0)=>{setLoading(true);api('/api/audit?'+qs(offset)).then(d=>{setRows(r=>offset?[...r,...(d.audit||[])]:(d.audit||[]));setMeta({total:d.total,hasMore:d.hasMore,offset:d.offset});if(d.facets)setFacets(d.facets)}).catch(()=>{}).finally(()=>setLoading(false))};
+ useEffect(()=>{const t=setTimeout(()=>load(0),f.q?250:0);return()=>clearTimeout(t)},[f.entityType,f.action,f.q,f.since]);// eslint-disable-line react-hooks/exhaustive-deps
+ return <div className="audit-page">
+  <div className="audit-filters">
+   <select value={f.entityType} onChange={e=>setF({...f,entityType:e.target.value})}><option value="">Toda entidad</option>{(facets.entityTypes||[]).map((x:string)=><option key={x} value={x}>{x}</option>)}</select>
+   <select value={f.action} onChange={e=>setF({...f,action:e.target.value})}><option value="">Toda acción</option>{(facets.actions||[]).map((x:string)=><option key={x} value={x}>{x}</option>)}</select>
+   <input type="date" value={f.since} onChange={e=>setF({...f,since:e.target.value})} title="Desde"/>
+   <input placeholder="Buscar ID / entidad…" value={f.q} onChange={e=>setF({...f,q:e.target.value})}/>
+   <span className="audit-count">{meta.total!=null?`${meta.total} registro(s)`:''}</span>
+  </div>
+  {!rows.length&&!loading?<div className="live-empty small">Sin registros para este filtro.</div>:
+   <div className="panel live-table-wrap"><table className="live-table"><thead><tr><th>Acción</th><th>Entidad</th><th>Actor</th><th>IP</th><th>Fecha</th></tr></thead><tbody>{rows.map(x=><tr key={x.id} className="clickable-row" onClick={()=>setSel(x)}><td><B v={x.action}/></td><td>{x.entity_type}{x.entity_id?<small className="mono">{String(x.entity_id).slice(0,8)}</small>:null}</td><td>{x.actor_name||'Sistema'}{x.actor_email?<small>{x.actor_email}</small>:null}</td><td className="mono">{x.ip||'—'}</td><td>{new Date(x.created_at).toLocaleString('es-DO')}</td></tr>)}</tbody></table></div>}
+  {meta.hasMore&&<button className="secondary-btn audit-more" disabled={loading} onClick={()=>load(rows.length)}>{loading?'Cargando…':'Cargar más'}</button>}
+  {sel&&<Modal title={`${sel.action} · ${sel.entity_type}`} close={()=>setSel(null)}><div className="audit-detail">
+   <div className="audit-detail-meta"><span>Actor</span><b>{sel.actor_name||'Sistema'} {sel.actor_email?`· ${sel.actor_email}`:''}</b><span>Entidad</span><b className="mono">{sel.entity_type} {sel.entity_id||''}</b><span>IP</span><b className="mono">{sel.ip||'—'}</b><span>Fecha</span><b>{new Date(sel.created_at).toLocaleString('es-DO')}</b></div>
+   {sel.before_data&&<><h4>Antes</h4><pre className="audit-json">{JSON.stringify(sel.before_data,null,2)}</pre></>}
+   {sel.after_data&&<><h4>{sel.before_data?'Después':'Datos'}</h4><pre className="audit-json">{JSON.stringify(sel.after_data,null,2)}</pre></>}
+   {!sel.before_data&&!sel.after_data&&<p className="auto-hint">Sin datos adjuntos.</p>}
+  </div></Modal>}
+ </div>;
 }
 const ACT_LABEL:Record<string,string>={notify:'Notificar',email:'Correo',webhook:'Webhook'};
 function Automations({d,refresh}:{d:any;refresh:()=>void}){
