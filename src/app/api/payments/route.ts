@@ -2,6 +2,35 @@ import { requireUser } from "@/lib/auth";
 import { query, tx } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { sendEmail } from "@/lib/notifications";
-import { apiError, ok, fail, text, optionalText, numberValue } from "@/lib/http";
+import { apiError, ok } from "@/lib/http";
+import { parseBody, paymentCreateSchema } from "@/lib/schema";
+
 export async function GET(){try{const user=await requireUser();const p:unknown[]=[];let where='';if(user.role==='CLIENT'){where='WHERE pay.client_id=$1';p.push(user.clientId)}const{rows}=await query(`SELECT pay.*,c.name client_name,i.number invoice_number FROM payments pay JOIN clients c ON c.id=pay.client_id LEFT JOIN invoices i ON i.id=pay.invoice_id ${where} ORDER BY pay.paid_at DESC LIMIT 500`,p);return ok({payments:rows})}catch(e){return apiError(e)}}
-export async function POST(request:Request){try{const user=await requireUser(['SUPER_ADMIN','ADMIN','FINANCE']);const b=await request.json();const clientId=text(b.clientId,50),amount=numberValue(b.amount);if(!clientId||amount<=0)return fail("VALIDATION", 'Cliente y monto válido requeridos', 400);const payment=await tx(async c=>{const{rows}=await c.query<any>(`INSERT INTO payments(invoice_id,client_id,amount,currency,method,reference,paid_at,notes,created_by) VALUES($1,$2,$3,$4,$5,$6,coalesce($7::timestamptz,now()),$8,$9) RETURNING *`,[optionalText(b.invoiceId,50),clientId,amount,text(b.currency,5)||'DOP',text(b.method,30)||'TRANSFER',optionalText(b.reference,200),optionalText(b.paidAt,40),optionalText(b.notes,2000),user.id]);if(b.invoiceId){await c.query(`UPDATE invoices SET paid_amount=least(total,paid_amount+$2),status=CASE WHEN paid_amount+$2>=total THEN 'PAID' ELSE 'PARTIAL' END,updated_at=now() WHERE id=$1`,[b.invoiceId,amount])}return rows[0]});const client=(await query<any>(`SELECT name,email FROM clients WHERE id=$1`,[clientId])).rows[0];if(client?.email)await sendEmail(client.email,'Pago recibido · JFMCSS',`<p>Hola ${client.name},</p><p>Confirmamos la recepción de tu pago por <strong>RD$${amount.toLocaleString('en-US',{minimumFractionDigits:2})}</strong>.</p><p>Gracias por confiar en JFMCSS.</p>`,clientId).catch(()=>null);await audit(user.id,'CREATE','PAYMENT',payment.id,payment);return ok({payment}, 201)}catch(e){return apiError(e)}}
+
+export async function POST(request:Request){try{
+  const user=await requireUser(['SUPER_ADMIN','ADMIN','FINANCE']);
+  const b=await parseBody(request, paymentCreateSchema);
+  const amount=Math.round(b.amount*100)/100;
+  const payment=await tx(async c=>{
+    const{rows}=await c.query<Record<string,unknown> & {id:string}>(
+      `INSERT INTO payments(invoice_id,client_id,amount,currency,method,reference,paid_at,notes,created_by)
+       VALUES($1,$2,$3,$4,$5,$6,coalesce($7::timestamptz,now()),$8,$9) RETURNING *`,
+      [b.invoiceId??null,b.clientId,amount,b.currency??'DOP',b.method??'TRANSFER',b.reference??null,b.paidAt??null,b.notes??null,user.id]);
+    if(b.invoiceId){
+      // Reconcile against the invoice this payment belongs to; keep the balance
+      // from going negative and flip the status to PARTIAL/PAID accordingly.
+      await c.query(
+        `UPDATE invoices
+            SET paid_amount=least(total,paid_amount+$2),
+                status=CASE WHEN paid_amount+$2>=total THEN 'PAID' ELSE 'PARTIAL' END,
+                updated_at=now()
+          WHERE id=$1 AND client_id=$3 AND status NOT IN ('VOID','DRAFT')`,
+        [b.invoiceId,amount,b.clientId]);
+    }
+    return rows[0];
+  });
+  const client=(await query<{name:string;email:string|null}>(`SELECT name,email FROM clients WHERE id=$1`,[b.clientId])).rows[0];
+  if(client?.email)await sendEmail(client.email,'Pago recibido · JFMCSS',`<p>Hola ${client.name},</p><p>Confirmamos la recepción de tu pago por <strong>RD$${amount.toLocaleString('en-US',{minimumFractionDigits:2})}</strong>.</p><p>Gracias por confiar en JFMCSS.</p>`,b.clientId).catch(()=>null);
+  await audit(user.id,'CREATE','PAYMENT',payment.id,payment);
+  return ok({payment}, 201);
+}catch(e){return apiError(e)}}

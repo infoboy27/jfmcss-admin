@@ -4,7 +4,8 @@ import { calculateInvoice } from "@/lib/billing";
 import { allocateFiscalNumber, submitEcf } from "@/lib/fiscal";
 import { audit } from "@/lib/audit";
 import { sendEmail } from "@/lib/notifications";
-import { apiError, ok, fail, text, optionalText, dateValue } from "@/lib/http";
+import { apiError, ok, optionalText, dateValue } from "@/lib/http";
+import { parseBody, invoiceCreateSchema } from "@/lib/schema";
 
 export async function GET() {
   try {
@@ -34,13 +35,12 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const user = await requireUser(["SUPER_ADMIN", "ADMIN", "FINANCE"]);
-    const b = await request.json().catch(() => ({}));
-    const clientId = text(b.clientId, 50);
-    if (!clientId) return fail("VALIDATION", "Cliente requerido", 400);
+    const b = await parseBody(request, invoiceCreateSchema);
+    const clientId = b.clientId;
 
     const totals = calculateInvoice(b.items, b.discount);
     const issue = Boolean(b.issue);
-    const fiscalType = text(b.fiscalType, 10) || "E31";
+    const fiscalType = b.fiscalType || "E31";
 
     const invoice = await tx(async (c) => {
       // Serialize invoice-number allocation without locking the whole table.
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
           fiscalType,
           ncf,
           issue ? "ISSUED" : "DRAFT",
-          text(b.currency, 5) || "DOP",
+          b.currency || "DOP",
           issueDate,
           dueDate,
           totals.subtotal,
