@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { apiError, ok, fail } from "@/lib/http";
-import { arAging, revenueReport, toCsv } from "@/lib/reports";
+import { arAging, revenueReport, renewalWatch, toCsv } from "@/lib/reports";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +38,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ kind
       if (csv) {
         return new Response(toCsv(data.monthly), {
           headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="revenue.csv"` },
+        });
+      }
+      return ok(data);
+    }
+
+    if (kind === "renewals") {
+      const data = await renewalWatch(user);
+      if (csv) {
+        return new Response(toCsv(data.items), {
+          headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="renewals.csv"` },
         });
       }
       return ok(data);

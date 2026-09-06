@@ -125,7 +125,7 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 | Support / Help Desk / SLA | ✅ v1 | first-response + resolution targets (config `sla_v2`), pausable clock (WAITING_CLIENT), 50/75/90/100 % alerts + escalation via `/api/cron/sla`, breach flags, dashboard (compliance %, avg times). No CSAT. |
 | Billable support → invoice | ✅ | `ticket_time_entries` + `/api/tickets/[id]/time`; `/api/support/unbilled` groups by client; `/api/support/invoice` rolls it into one invoice at the configured rate and stamps the entries (no double-billing). |
 | Assets / infrastructure | Partial | Asset CRUD + days-to-renewal. No secret-manager references, no dependency graph. |
-| Renewal Watch | **Missing** as a surface | Cron notifies; no 7/30/60/90 dashboard, no "revenue at risk". |
+| Renewal Watch | ✅ | `GET /api/reports/renewals` — 7/30/60/90-day windows with count + revenue, overdue count, revenue-at-risk; Servicios & activos page leads with it + CSV. |
 | Notifications center | **Missing** | Rows are written; no unified center, no per-user preferences. |
 | Automation builder (WHEN/IF/DO) | **Missing** | `automation_rules` table exists; no engine, no UI. |
 | Documents | Partial | Upload/download/delete with auth. No S3 abstraction, no versioning, weak type validation. |

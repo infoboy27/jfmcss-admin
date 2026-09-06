@@ -126,6 +126,62 @@ export async function revenueReport(user: SessionUser, from: string, to: string)
   };
 }
 
+/** Renewal watch: what renews in 7/30/60/90 days and the revenue at stake. */
+export async function renewalWatch(user: SessionUser) {
+  const s = clientScope(user, "a.client_id");
+  const num = (v: any) => Math.round((Number(v) || 0) * 100) / 100;
+
+  const windows = await query<any>(
+    `SELECT
+       count(*) FILTER (WHERE d <= 7)::int  n7,   coalesce(sum(price) FILTER (WHERE d <= 7),0)  rev7,
+       count(*) FILTER (WHERE d <= 30)::int n30,  coalesce(sum(price) FILTER (WHERE d <= 30),0) rev30,
+       count(*) FILTER (WHERE d <= 60)::int n60,  coalesce(sum(price) FILTER (WHERE d <= 60),0) rev60,
+       count(*) FILTER (WHERE d <= 90)::int n90,  coalesce(sum(price) FILTER (WHERE d <= 90),0) rev90,
+       count(*) FILTER (WHERE d < 0)::int   overdue
+     FROM (
+       SELECT (a.renewal_date - CURRENT_DATE)::int d, a.recurring_price price
+         FROM assets a ${s.where ? s.where + " AND" : "WHERE"} a.status='ACTIVE' AND a.renewal_date IS NOT NULL
+          AND a.renewal_date <= CURRENT_DATE + 90
+     ) x`,
+    s.params,
+  );
+
+  const list = await query<any>(
+    `SELECT a.id, a.name, a.type, a.provider, a.renewal_date, a.recurring_cost, a.recurring_price,
+            a.auto_invoice, c.name client_name, (a.renewal_date - CURRENT_DATE)::int days
+       FROM assets a JOIN clients c ON c.id=a.client_id
+      ${s.where ? s.where + " AND" : "WHERE"} a.status='ACTIVE' AND a.renewal_date IS NOT NULL
+        AND a.renewal_date <= CURRENT_DATE + 90
+      ORDER BY a.renewal_date
+      LIMIT 100`,
+    s.params,
+  );
+
+  const w = windows.rows[0] ?? {};
+  return {
+    windows: {
+      "7": { count: Number(w.n7 || 0), revenue: num(w.rev7) },
+      "30": { count: Number(w.n30 || 0), revenue: num(w.rev30) },
+      "60": { count: Number(w.n60 || 0), revenue: num(w.rev60) },
+      "90": { count: Number(w.n90 || 0), revenue: num(w.rev90) },
+    },
+    overdue: Number(w.overdue || 0),
+    revenueAtRisk: num(w.rev30),
+    items: list.rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      type: r.type,
+      provider: r.provider,
+      client: r.client_name,
+      renewalDate: r.renewal_date,
+      days: r.days,
+      cost: num(r.recurring_cost),
+      price: num(r.recurring_price),
+      autoInvoice: r.auto_invoice,
+    })),
+  };
+}
+
 export function toCsv(rows: Record<string, any>[]): string {
   if (rows.length === 0) return "";
   const cols = Object.keys(rows[0]);
