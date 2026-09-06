@@ -51,6 +51,14 @@ const PG_ERROR_MAP: Record<string, { code: string; message: string; status: numb
 export function apiError(error: unknown) {
   if (error instanceof ApiError) return fail(error.code, error.message, error.status);
 
+  // ZodError (from a bare `schema.parse()`) — surface the first field + message.
+  const z = error as { name?: string; issues?: Array<{ path: (string | number)[]; message: string }> };
+  if (z?.name === "ZodError" && Array.isArray(z.issues)) {
+    const first = z.issues[0];
+    const path = first?.path.join(".");
+    return fail("VALIDATION", path ? `${path}: ${first.message}` : first?.message || "Datos inválidos", 400);
+  }
+
   const e = error as { status?: number; message?: string; code?: string };
   if (e?.message === "UNAUTHENTICATED") return fail("UNAUTHENTICATED", "No autenticado", 401);
   if (e?.message === "FORBIDDEN") return fail("FORBIDDEN", "Sin permisos", 403);

@@ -66,3 +66,23 @@ describe("userCreateSchema", () => {
     ).rejects.toThrow(/contraseña/);
   });
 });
+
+describe("proposalCreateSchema", () => {
+  const clientId = "11111111-1111-1111-1111-111111111111";
+  it("accepts a proposal with items and percentage milestones", async () => {
+    const { parseBody, proposalCreateSchema } = await import("../src/lib/schema");
+    const v = await parseBody(
+      new Request("http://x", { method: "POST", body: JSON.stringify({
+        clientId, title: "Portal", items: [{ description: "Dev", unitPrice: 100000 }],
+        milestones: [{ label: "Inicio", percentage: 50 }, { label: "Entrega", percentage: 50 }],
+      }) }),
+      proposalCreateSchema,
+    );
+    expect(v.title).toBe("Portal");
+    expect(v.milestones?.length).toBe(2);
+  });
+  it("requires a title and at least one item", async () => {
+    const { parseBody, proposalCreateSchema } = await import("../src/lib/schema");
+    await expect(parseBody(new Request("http://x", { method: "POST", body: JSON.stringify({ clientId, items: [] }) }), proposalCreateSchema)).rejects.toThrow();
+  });
+});

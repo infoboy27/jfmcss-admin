@@ -43,7 +43,7 @@ export function money(value: unknown): number {
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
 }
 
-const NUMBER_COLUMN = { invoices: "number", tickets: "number", projects: "code" } as const;
+const NUMBER_COLUMN = { invoices: "number", tickets: "number", projects: "code", proposals: "number" } as const;
 
 /**
  * Allocates the next `PREFIX-YEAR-00001` human identifier for a table.

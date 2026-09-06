@@ -161,6 +161,38 @@ export const paymentCreateSchema = z.object({
   notes: optStr(2000),
 });
 
+// ─── proposals ──────────────────────────────────────────────────────────────
+const milestoneSchema = z.object({
+  label: reqStr(120, "etiqueta requerida"),
+  percentage: z.coerce.number().min(0).max(100).optional(),
+  amount: z.coerce.number().min(0).optional(),
+});
+export const proposalCreateSchema = z.object({
+  clientId: id,
+  opportunityId: optId,
+  title: reqStr(250, "título requerido"),
+  summary: optStr(4000),
+  currency: z.enum(["DOP", "USD", "EUR"]).optional(),
+  items: z.array(invoiceItemSchema).min(1, "al menos una línea"),
+  discount: money,
+  validUntil: isoDate,
+  paymentTerms: optStr(500),
+  terms: optStr(8000),
+  notes: optStr(4000),
+  milestones: z.array(milestoneSchema).max(12).optional(),
+});
+export const proposalUpdateSchema = proposalCreateSchema.partial().omit({ clientId: true });
+export const proposalActionSchema = z.object({
+  action: z.enum(["SEND", "ACCEPT", "REJECT", "EXPIRE", "CONVERT"]),
+  note: optStr(2000),
+  createInitialInvoice: z.boolean().optional(),
+});
+/** Body a client posts from the public proposal link. */
+export const publicDecisionSchema = z.object({
+  decision: z.enum(["ACCEPT", "REJECT"]),
+  note: optStr(2000),
+});
+
 // ─── support ────────────────────────────────────────────────────────────────
 export const ticketCreateSchema = z.object({
   clientId: optId,

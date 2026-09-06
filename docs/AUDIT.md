@@ -115,7 +115,7 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 |---|---|---|
 | CRM / clients / contacts | Partial | Clients + contacts CRUD, Client 360 read view. No lead capture, no tags UI, no activity timeline. |
 | Leads & opportunities / pipeline | Partial | Opportunities table + weighted forecast number. No kanban, no stage automation, no per-deal activity. |
-| Proposals / quotes | **Missing** | No table, no PDF, no accept/reject link, no conversion to project/invoice. |
+| Proposals / quotes | ✅ v1 | Schema, branded PDF, tokenised public accept/reject page (`/p/[token]`), one-tx conversion → project + opportunity WON + optional initial invoice. Milestone editor is minimal; no proposal versioning yet. |
 | Projects & tasks | Partial | Projects + tasks + margin math. No team, no time tracking, no file tab, no milestones. |
 | Recurring services | **Missing** | `assets.billing_cycle` exists but nothing generates invoices from it. |
 | Dominican billing / NCF / e-CF | Partial | Sequence allocation + NCF on issue + e-CF adapter stub. No credit notes, no sequence-exhaustion alerts, no e-CF XML. |
