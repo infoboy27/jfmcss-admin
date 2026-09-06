@@ -25,7 +25,11 @@ Operations OS for JFMCSS: CRM + sales + projects + fiscal billing + collections 
   builder with dry-run preview and an execution log.
 - Daily protected cron endpoint for overdue invoices, due-soon reminders, renewals and SLA risk.
 - e-CF provider adapter that is disabled until valid DGII authorization/provider credentials are configured.
-- User/RBAC administration, fiscal/SLA settings APIs and audit trail.
+- User/RBAC administration, fiscal/SLA settings APIs and a filterable audit trail
+  (Auditoría page: entity/action/date filters + before/after JSON).
+- Optional TOTP two-factor auth (opt-in per user, one-time backup codes).
+- Offset pagination (`?limit=&offset=`) on the main list endpoints.
+- Client-portal skin of the workspace for `CLIENT` users.
 - Protected local document storage with authenticated downloads; Docker uses a persistent upload volume.
 - Health endpoint and GitHub Actions CI (`tsc` + production Next.js build).
 
