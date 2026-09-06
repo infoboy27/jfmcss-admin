@@ -1,18 +1,42 @@
 name: CI
+
 on:
   push:
     branches: [main]
   pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+          cache: npm
+      - run: npm ci
       - run: npm run lint
+      - run: npm test
+      # Build first so Next generates .next/types that next-env.d.ts references,
+      # then type-check against them.
       - run: npm run build
         env:
+          NODE_ENV: production
           DATABASE_URL: postgresql://placeholder:placeholder@127.0.0.1:5432/placeholder
+      - run: npm run typecheck
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Fail the job on any high/critical advisory; review before bumping.
+      - run: npm audit --audit-level=high
