@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 type Row=Record<string,any>;
 const M=(v:any)=>`RD$${Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 const D=(v:any)=>v?new Date(v).toLocaleDateString('es-DO'):'—';
-async function j(url:string,init?:RequestInit){const r=await fetch(url,init);const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);return d}
+async function j(url:string,init?:RequestInit){const r=await fetch(url,init);const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d?.error?.message||d?.error||`HTTP ${r.status}`);return d?.data??d}
 export default function Client360({clientId,close}:{clientId:string;close:()=>void}){
  const[data,setData]=useState<any>(),[docs,setDocs]=useState<Row[]>([]),[error,setError]=useState(''),[contact,setContact]=useState({name:'',email:'',phone:'',title:''}),[busy,setBusy]=useState(false);
  const load=()=>Promise.all([j(`/api/clients/${clientId}`),j(`/api/documents?clientId=${clientId}`)]).then(([a,b])=>{setData(a);setDocs(b.documents||[])}).catch(e=>setError(e.message));useEffect(()=>{load()},[clientId]);

@@ -1,7 +1,6 @@
-import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { query } from "@/lib/db";
-import { apiError } from "@/lib/http";
+import { apiError, ok } from "@/lib/http";
 
 export async function GET() {
   try {
@@ -52,7 +51,7 @@ export async function GET() {
         : query(`SELECT id,action,entity_type,entity_id,created_at FROM audit_log ORDER BY created_at DESC LIMIT 12`),
     ]);
 
-    return NextResponse.json({
+    return ok({
       clients: Number(clients.rows[0]?.count || 0),
       projects: { active: Number(projects.rows[0]?.active || 0), mrr: Number(projects.rows[0]?.recurring || 0) },
       billing: Object.fromEntries(Object.entries(invoices.rows[0] || {}).map(([k, v]) => [k, Number(v || 0)])),

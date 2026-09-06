@@ -23,8 +23,6 @@ export async function GET() {
     checks.schema = "error";
   }
   const ready = Object.values(checks).every((v) => v === "ok");
-  return NextResponse.json(
-    { ready, checks, time: new Date().toISOString() },
-    { status: ready ? 200 : 503 },
-  );
+  // Not enveloped — this is an infrastructure probe, not an API resource.
+  return NextResponse.json({ ready, checks, time: new Date().toISOString() }, { status: ready ? 200 : 503 });
 }

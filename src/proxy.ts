@@ -35,7 +35,10 @@ function isCrossSiteWrite(request: NextRequest): boolean {
 
 export function proxy(request: NextRequest) {
   if (isCrossSiteWrite(request)) {
-    return NextResponse.json({ error: "Origen no permitido" }, { status: 403 });
+    return NextResponse.json(
+      { error: { code: "CROSS_ORIGIN", message: "Origen no permitido" } },
+      { status: 403 },
+    );
   }
 
   const nonce = btoa(`${crypto.randomUUID()}${crypto.randomUUID()}`);

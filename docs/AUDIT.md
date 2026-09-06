@@ -96,7 +96,7 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 
 - Extract a real design system (Button, Input, Table, Modal, Drawer, Badge, KPI, EmptyState, Skeleton, Toast, CommandPalette…) and break up `LiveControl`.
 - Storage abstraction (`DocumentStore` interface) so local disk can be swapped for S3/MinIO without touching the modules.
-- Standard API envelope (`{data}` / `{error:{code,message}}`) + Zod payload schemas at every route boundary.
+- Zod payload schemas at every route boundary (envelope done — see below).
 - Structured logging with a request id; `/metrics`; readiness already added.
 - Session cookie should rotate on privilege change; consider TOTP MFA for `SUPER_ADMIN`/`ADMIN`.
 
@@ -141,10 +141,12 @@ env-driven compose, invoice-math extraction + tests, dead-code removal.
 Deployed to `https://control.jfmcss.com` (Traefik + ACME).
 
 **Phase 1 — foundations**
-Versioned migrations · standard API envelope + Zod · `Origin` CSRF check ·
-centralized client-scope helper + isolation test suite · notification outbox
-(async) · pool error handler + session pruning · lock ticket/project numbering ·
-`updated_at` triggers · storage interface.
+✅ versioned migrations · ✅ standard API envelope (`{data}` / `{error:{code,message}}`,
+`ok()`/`fail()` in `lib/http`, all 30 routes + 5 frontend callers) · ✅ `Origin` CSRF check ·
+✅ pool error handler · ✅ lock ticket/project numbering · ✅ `updated_at` triggers ·
+✅ outbound timeouts.
+Open: Zod payload schemas · centralized client-scope helper + isolation test suite ·
+notification outbox (async) + session pruning · storage interface.
 
 **Phase 2 — revenue core**
 Proposals (schema, PDF, secure accept/reject link, convert → opportunity WON →

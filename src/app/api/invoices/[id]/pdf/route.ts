@@ -1,7 +1,7 @@
 import { requireUser } from "@/lib/auth";
 import { query } from "@/lib/db";
-import { apiError } from "@/lib/http";
 import { invoicePdf } from "@/lib/pdf";
+import { apiError } from "@/lib/http";
 
 export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
   try{

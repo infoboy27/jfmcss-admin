@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { nextHumanNumber, query, tx } from "@/lib/db";
-import { apiError, numberValue, optionalText, text } from "@/lib/http";
 import { audit } from "@/lib/audit";
 import { notifyInApp, sendEmail } from "@/lib/notifications";
+import { apiError, ok, fail, text, optionalText, numberValue } from "@/lib/http";
 
 const DEFAULT_SLA_HOURS: Record<string, number> = { LOW: 48, MEDIUM: 24, HIGH: 8, URGENT: 2 };
 
@@ -37,7 +36,7 @@ export async function GET() {
         LIMIT 500`,
       p,
     );
-    return NextResponse.json({ tickets: rows });
+    return ok({ tickets: rows });
   } catch (e) {
     return apiError(e);
   }
@@ -51,7 +50,7 @@ export async function POST(request: Request) {
     const subject = text(b.subject, 250);
     const description = text(b.description, 10000);
     if (!clientId || !subject || !description) {
-      return NextResponse.json({ error: "Cliente, asunto y descripción requeridos" }, { status: 400 });
+      return fail("VALIDATION", "Cliente, asunto y descripción requeridos", 400);
     }
     const priority = (text(b.priority, 20) || "MEDIUM").toUpperCase();
     const slaHours = await slaHoursFor(priority);
@@ -106,7 +105,7 @@ export async function POST(request: Request) {
       );
     }
     await audit(user.id, "CREATE", "TICKET", ticket.id, ticket);
-    return NextResponse.json({ ticket }, { status: 201 });
+    return ok({ ticket }, 201);
   } catch (e) {
     return apiError(e);
   }

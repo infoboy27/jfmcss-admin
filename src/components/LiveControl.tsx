@@ -10,7 +10,7 @@ type Row=Record<string,any>;
 const M=(v:any)=>`RD$${Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 const D=(v:any)=>v?new Date(v).toLocaleDateString('es-DO'):'—';
 const B=({v}:{v:any})=><span className={`live-badge ${String(v||'').toLowerCase().replaceAll('_','-')}`}>{String(v||'—').replaceAll('_',' ')}</span>;
-async function api(url:string,init?:RequestInit){const r=await fetch(url,{...init,headers:{'content-type':'application/json',...(init?.headers||{})}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);return d}
+async function api(url:string,init?:RequestInit){const r=await fetch(url,{...init,headers:{'content-type':'application/json',...(init?.headers||{})}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d?.error?.message||d?.error||`HTTP ${r.status}`);return d?.data??d}
 
 const nav:[Key,string,string][]= [['dashboard','Centro de control','⌂'],['clients','Clientes','◉'],['sales','Ventas','↗'],['projects','Proyectos','◇'],['billing','Facturación','▤'],['payments','Cobros','$'],['support','Soporte','◎'],['assets','Servicios & activos','▦'],['notifications','Comunicaciones','◌'],['automations','Automatizaciones','⚡'],['reports','Reportes','▥'],['settings','Configuración','⚙']];
 const clientKeys=new Set<Key>(['dashboard','projects','billing','payments','support','assets','notifications','settings']);

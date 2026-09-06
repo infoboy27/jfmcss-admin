@@ -1,10 +1,9 @@
-import { NextResponse } from "next/server";
 import { bootstrapIfNeeded, createSession, verifyPassword } from "@/lib/auth";
 import { query } from "@/lib/db";
-import { apiError, text } from "@/lib/http";
 import { audit } from "@/lib/audit";
 import { rateLimit } from "@/lib/ratelimit";
 import { headers } from "next/headers";
+import { apiError, ok, fail, text } from "@/lib/http";
 
 const MAX_ATTEMPTS = Number(process.env.LOGIN_RATE_LIMIT || 10);
 const WINDOW_SECONDS = Number(process.env.LOGIN_RATE_WINDOW_SECONDS || 300);
@@ -15,7 +14,7 @@ export async function POST(request: Request) {
     const email = text(body.email, 254).toLowerCase();
     const password = text(body.password, 500);
     if (!email || !password) {
-      return NextResponse.json({ error: "Correo y contraseña son requeridos" }, { status: 400 });
+      return fail("VALIDATION", "Correo y contraseña son requeridos", 400);
     }
 
     // Rate limit per IP and per targeted account to slow credential stuffing /
@@ -25,10 +24,9 @@ export async function POST(request: Request) {
     for (const key of [`login:ip:${ip}`, `login:acct:${email}`]) {
       const rl = rateLimit(key, MAX_ATTEMPTS, WINDOW_SECONDS);
       if (!rl.ok) {
-        return NextResponse.json(
-          { error: "Demasiados intentos. Intenta de nuevo más tarde." },
-          { status: 429, headers: { "retry-after": String(rl.retryAfterSeconds) } },
-        );
+        return fail("RATE_LIMITED", "Demasiados intentos. Intenta de nuevo más tarde.", 429, {
+          "retry-after": String(rl.retryAfterSeconds),
+        });
       }
     }
 
@@ -40,11 +38,11 @@ export async function POST(request: Request) {
     const user = rows[0];
     if (!user || !user.active || !verifyPassword(password, user.password_hash)) {
       await audit(user?.id ?? null, "LOGIN_FAILED", "SESSION", null, { email });
-      return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 });
+      return fail("UNAUTHENTICATED", "Credenciales inválidas", 401);
     }
     await createSession(user.id);
     await audit(user.id, "LOGIN", "SESSION", null, { email: user.email });
-    return NextResponse.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } });
+    return ok({ user: { id: user.id, email: user.email, name: user.name, role: user.role } });
   } catch (error) {
     return apiError(error);
   }

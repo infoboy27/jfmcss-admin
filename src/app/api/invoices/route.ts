@@ -1,11 +1,10 @@
-import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { tx, query } from "@/lib/db";
-import { apiError, dateValue, optionalText, text } from "@/lib/http";
 import { calculateInvoice } from "@/lib/billing";
 import { allocateFiscalNumber, submitEcf } from "@/lib/fiscal";
 import { audit } from "@/lib/audit";
 import { sendEmail } from "@/lib/notifications";
+import { apiError, ok, fail, text, optionalText, dateValue } from "@/lib/http";
 
 export async function GET() {
   try {
@@ -26,7 +25,7 @@ export async function GET() {
         LIMIT 500`,
       params,
     );
-    return NextResponse.json({ invoices: rows });
+    return ok({ invoices: rows });
   } catch (e) {
     return apiError(e);
   }
@@ -37,7 +36,7 @@ export async function POST(request: Request) {
     const user = await requireUser(["SUPER_ADMIN", "ADMIN", "FINANCE"]);
     const b = await request.json().catch(() => ({}));
     const clientId = text(b.clientId, 50);
-    if (!clientId) return NextResponse.json({ error: "Cliente requerido" }, { status: 400 });
+    if (!clientId) return fail("VALIDATION", "Cliente requerido", 400);
 
     const totals = calculateInvoice(b.items, b.discount);
     const issue = Boolean(b.issue);
@@ -140,7 +139,7 @@ export async function POST(request: Request) {
     }
 
     await audit(user.id, "CREATE", "INVOICE", invoice.id, invoice);
-    return NextResponse.json({ invoice }, { status: 201 });
+    return ok({ invoice }, 201);
   } catch (e) {
     return apiError(e);
   }

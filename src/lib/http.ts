@@ -3,23 +3,65 @@ import { NextResponse } from "next/server";
 export { text, optionalText, numberValue, dateValue } from "./validate";
 
 /**
- * Maps thrown errors to a JSON response. Known sentinels (`UNAUTHENTICATED`,
- * `FORBIDDEN`) and Postgres error codes are translated to friendly Spanish
- * messages; anything else is logged and returned as a generic 500 so internal
- * details never leak to the client.
+ * Standard API envelope.
+ *
+ *   success →  { "data": <payload> }
+ *   failure →  { "error": { "code": "SNAKE_CASE", "message": "..." } }
+ *
+ * Routes return `ok(payload)` / `fail(code, message, status)`; anything thrown is
+ * funnelled through `apiError`. Clients read `body.data` or `body.error.message`.
+ */
+export function ok<T>(data: T, init?: number | ResponseInit) {
+  const responseInit = typeof init === "number" ? { status: init } : init;
+  return NextResponse.json({ data }, responseInit);
+}
+
+export class ApiError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly status = 400,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+export function fail(code: string, message: string, status = 400, headers?: HeadersInit) {
+  return NextResponse.json({ error: { code, message } }, { status, headers });
+}
+
+/** Throwable form — use inside helpers where returning a Response is awkward. */
+export function apiFail(code: string, message: string, status = 400): never {
+  throw new ApiError(code, message, status);
+}
+
+const PG_ERROR_MAP: Record<string, { code: string; message: string; status: number }> = {
+  "23505": { code: "CONFLICT", message: "Ya existe un registro con ese valor único", status: 409 },
+  "23503": { code: "INVALID_REFERENCE", message: "Referencia inválida a otro registro", status: 409 },
+  "23514": { code: "VALIDATION", message: "Datos inválidos", status: 400 },
+  "22P02": { code: "VALIDATION", message: "Datos inválidos", status: 400 },
+};
+
+/**
+ * Maps a thrown error to the failure envelope. Known sentinels and Postgres
+ * error codes get friendly Spanish messages; anything unrecognised is logged
+ * and returned as a generic 500 so internals never leak.
  */
 export function apiError(error: unknown) {
+  if (error instanceof ApiError) return fail(error.code, error.message, error.status);
+
   const e = error as { status?: number; message?: string; code?: string };
-  if (e?.message === "UNAUTHENTICATED") return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  if (e?.message === "FORBIDDEN") return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
-  if (e?.code === "23505") return NextResponse.json({ error: "Ya existe un registro con ese valor único" }, { status: 409 });
-  if (e?.code === "23503") return NextResponse.json({ error: "Referencia inválida a otro registro" }, { status: 409 });
-  if (e?.code === "23514" || e?.code === "22P02") return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
+  if (e?.message === "UNAUTHENTICATED") return fail("UNAUTHENTICATED", "No autenticado", 401);
+  if (e?.message === "FORBIDDEN") return fail("FORBIDDEN", "Sin permisos", 403);
+
+  const pg = e?.code ? PG_ERROR_MAP[e.code] : undefined;
+  if (pg) return fail(pg.code, pg.message, pg.status);
 
   const status = typeof e?.status === "number" ? e.status : 500;
   if (status >= 500) {
     console.error("[api] unhandled error", error);
-    return NextResponse.json({ error: "Error interno" }, { status });
+    return fail("INTERNAL", "Error interno", status);
   }
-  return NextResponse.json({ error: e?.message || "Solicitud inválida" }, { status });
+  return fail("BAD_REQUEST", e?.message || "Solicitud inválida", status);
 }
