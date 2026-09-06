@@ -42,7 +42,7 @@ function emailBody(step: DunningStep, inv: any, balance: number, overdueDays: nu
   if (step.offset < 0) {
     return {
       subject: `Recordatorio: factura ${inv.number} vence pronto`,
-      html: `<p>Hola ${inv.client_name},</p><p>Tu factura <strong>${inv.number}</strong> vence el ${String(inv.due_date).slice(0, 10)}.</p>${common}`,
+      html: `<p>Hola ${inv.client_name},</p><p>Tu factura <strong>${inv.number}</strong> vence el ${String(inv.due_text).slice(0, 10)}.</p>${common}`,
     };
   }
   if (overdueDays <= 3) {
@@ -75,7 +75,10 @@ export async function runDunning(actorId: string | null = null): Promise<Dunning
   ).rows;
 
   const { rows: invoices } = await query<any>(
-    `SELECT i.*, c.name client_name, c.email client_email
+    `SELECT i.id, i.number, i.ncf, i.total, i.paid_amount, i.dunning_log,
+            i.due_date::text     due_text,
+            i.promise_date::text promise_text,
+            c.name client_name, c.email client_email, i.client_id
        FROM invoices i JOIN clients c ON c.id = i.client_id
       WHERE i.document_kind = 'INVOICE'
         AND i.status IN ('ISSUED','PARTIAL','OVERDUE')
@@ -87,11 +90,11 @@ export async function runDunning(actorId: string | null = null): Promise<Dunning
   for (const inv of invoices) {
     result.evaluated++;
     const balance = Number(inv.total) - Number(inv.paid_amount);
-    const due = new Date(String(inv.due_date).slice(0, 10) + "T12:00:00Z");
+    const due = new Date(inv.due_text + "T12:00:00Z");
     const overdueDays = daysBetween(today, due);
 
-    if (inv.promise_date) {
-      const graceEnd = new Date(String(inv.promise_date).slice(0, 10) + "T12:00:00Z");
+    if (inv.promise_text) {
+      const graceEnd = new Date(inv.promise_text + "T12:00:00Z");
       graceEnd.setUTCDate(graceEnd.getUTCDate() + cfg.promiseGraceDays);
       if (today < graceEnd) {
         result.skippedPromise++;
