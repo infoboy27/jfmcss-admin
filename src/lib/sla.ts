@@ -117,7 +117,14 @@ export async function runSlaChecks(): Promise<SlaRunResult> {
               ? `SLA de ${label} INCUMPLIDO en ${t.number}`
               : `SLA de ${label} al ${th}% en ${t.number}`;
           for (const a of admins) {
-            await notifyInAppOnce(a.id, `sla:${t.id}:${kind}:${th}`, msg, `${t.client_name} · ${t.subject}`, t.client_id);
+            await notifyInAppOnce(
+              a.id,
+              `sla:${t.id}:${kind}:${th}`,
+              msg,
+              `${t.client_name} · ${t.subject}`,
+              t.client_id,
+              "SUPPORT",
+            );
           }
           result.alerts++;
           if (th >= 90 && escalate < 1) {

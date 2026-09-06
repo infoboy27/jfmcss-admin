@@ -127,7 +127,8 @@ export async function runDunning(actorId: string | null = null): Promise<Dunning
         step.key === "escalation"
           ? `Escalación de cobro: ${inv.client_name} · ${inv.number} · ${rd(balance)} · ${overdueDays}d de mora`
           : `Cobro ${inv.number}: ${step.label} enviado a ${inv.client_name}`;
-      for (const u of team) await notifyInApp(u.id, msg, `${rd(balance)} pendiente`, inv.client_id, { invoiceId: inv.id });
+      for (const u of team)
+        await notifyInApp(u.id, msg, `${rd(balance)} pendiente`, inv.client_id, { invoiceId: inv.id }, "BILLING");
       sent = true;
       if (step.key === "escalation") result.escalations++;
     }

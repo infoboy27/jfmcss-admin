@@ -14,20 +14,21 @@ async function api(url:string,init?:RequestInit){const r=await fetch(url,{...ini
 
 const nav:[Key,string,string][]= [['dashboard','Centro de control','⌂'],['clients','Clientes','◉'],['sales','Ventas','↗'],['proposals','Propuestas','▧'],['projects','Proyectos','◇'],['billing','Facturación','▤'],['payments','Cobros','$'],['support','Soporte','◎'],['assets','Servicios & activos','▦'],['notifications','Comunicaciones','◌'],['automations','Automatizaciones','⚡'],['reports','Reportes','▥'],['settings','Configuración','⚙']];
 const clientKeys=new Set<Key>(['dashboard','proposals','projects','billing','payments','support','assets','notifications','settings']);
-const endpoints:Record<Key,string|null>={dashboard:'/api/dashboard',clients:'/api/clients',sales:'/api/opportunities',proposals:'/api/proposals',projects:'/api/projects',billing:'/api/invoices',payments:'/api/payments',support:'/api/tickets',assets:'/api/assets',notifications:'/api/notifications',automations:'/api/automations',reports:'/api/dashboard',settings:null};
-const subtitles:Record<Key,string>={dashboard:'Lo que requiere atención hoy, en una sola vista.',clients:'Relación, facturación y soporte por cliente.',sales:'Pipeline y siguientes acciones.',proposals:'Cotizaciones, envío al cliente y conversión a proyecto.',projects:'Entrega, margen y recurrencia.',billing:'NCF/e-NCF, balances y PDFs JFMCSS.',payments:'Cobros y conciliación.',support:'Tickets, SLA y tiempo facturable.',assets:'Dominios, cloud, SSL, licencias y renovaciones.',notifications:'Historial de comunicaciones.',automations:'Reglas y tareas automáticas.',reports:'Indicadores operativos y financieros.',settings:'Cuenta, seguridad e integraciones.'};
+const endpoints:Record<Key,string|null>={dashboard:'/api/dashboard',clients:'/api/clients',sales:'/api/opportunities',proposals:'/api/proposals',projects:'/api/projects',billing:'/api/invoices',payments:'/api/payments',support:'/api/tickets',assets:'/api/assets',notifications:null,automations:'/api/automations',reports:'/api/dashboard',settings:null};
+const subtitles:Record<Key,string>={dashboard:'Lo que requiere atención hoy, en una sola vista.',clients:'Relación, facturación y soporte por cliente.',sales:'Pipeline y siguientes acciones.',proposals:'Cotizaciones, envío al cliente y conversión a proyecto.',projects:'Entrega, margen y recurrencia.',billing:'NCF/e-NCF, balances y PDFs JFMCSS.',payments:'Cobros y conciliación.',support:'Tickets, SLA y tiempo facturable.',assets:'Dominios, cloud, SSL, licencias y renovaciones.',notifications:'Bandeja de notificaciones y preferencias.',automations:'Reglas y tareas automáticas.',reports:'Indicadores operativos y financieros.',settings:'Cuenta, seguridad e integraciones.'};
 
 export default function LiveControl({user}:{user:User}){
- const[active,setActive]=useState<Key>('dashboard'),[data,setData]=useState<any>(),[loading,setLoading]=useState(true),[error,setError]=useState(''),[modal,setModal]=useState<Key|null>(null),[tick,setTick]=useState(0),[q,setQ]=useState(''),[palette,setPalette]=useState(false);
+ const[active,setActive]=useState<Key>('dashboard'),[data,setData]=useState<any>(),[loading,setLoading]=useState(true),[error,setError]=useState(''),[modal,setModal]=useState<Key|null>(null),[tick,setTick]=useState(0),[q,setQ]=useState(''),[palette,setPalette]=useState(false),[notifUnread,setNotifUnread]=useState(0);
  const menu=useMemo(()=>nav.filter(([k])=>user.role!=='CLIENT'||clientKeys.has(k)),[user.role]);
  useEffect(()=>{const h=(e:KeyboardEvent)=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();setPalette(p=>!p)}if(e.key==='Escape')setPalette(false)};window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h)},[]);
+ useEffect(()=>{let alive=true;const poll=()=>api('/api/notifications?filter=unread').then(r=>{if(alive)setNotifUnread(r.unreadCount||0)}).catch(()=>{});poll();const iv=setInterval(poll,60000);return()=>{alive=false;clearInterval(iv)}},[tick]);
  useEffect(()=>{let cancelled=false;const ep=endpoints[active];const t=setTimeout(()=>{if(cancelled)return;if(!ep){setLoading(false);setData(null);setError('');return}setLoading(true);setError('');api(ep+(active==='clients'&&q?`?q=${encodeURIComponent(q)}`:'')).then(d=>{if(!cancelled)setData(d)}).catch(e=>{if(!cancelled)setError(e.message)}).finally(()=>{if(!cancelled)setLoading(false)})},active==='clients'?200:0);return()=>{cancelled=true;clearTimeout(t)}},[active,tick,q]);
  const refresh=()=>setTick(x=>x+1);const createAllowed=user.role!=='CLIENT'&&['clients','sales','proposals','projects','billing','payments','support','assets'].includes(active);
  async function logout(){await api('/api/auth/logout',{method:'POST'});location.href='/login'}
- return <div className="app-shell"><aside className="sidebar live-sidebar"><div className="sidebar-brand"><div className="live-logo">J</div><div><strong>JFMCSS</strong><span>CONTROL</span></div></div><nav>{menu.map(([k,l,i])=><button key={k} onClick={()=>setActive(k)} className={active===k?'active':''}><span className="nav-icon">{i}</span><span>{l}</span></button>)}</nav><div className="sidebar-bottom"><div className="workspace"><div className="avatar live-avatar">{user.name.split(' ').slice(0,2).map(x=>x[0]).join('')}</div><div><b>{user.name}</b><span>{user.role}</span></div></div><button onClick={logout}><span className="nav-icon">↪</span><span>Cerrar sesión</span></button></div></aside><main className="main-shell"><header className="topbar"><span className="breadcrumb">JFMCSS <b>/</b> {menu.find(x=>x[0]===active)?.[1]}</span><div className="topbar-right"><button className="global-search-btn" onClick={()=>setPalette(true)}>◎ Buscar<kbd>⌘K</kbd></button>{active==='clients'&&<input className="live-top-search" placeholder="Buscar cliente…" value={q} onChange={e=>setQ(e.target.value)}/>}</div></header><div className="content"><div className="page-header"><div><div className="eyebrow">LIVE WORKSPACE</div><h1>{menu.find(x=>x[0]===active)?.[1]}</h1><p>{subtitles[active]}</p></div>{(createAllowed||(active==='support'&&user.role==='CLIENT'))&&<button className="primary-btn" onClick={()=>setModal(active)}>＋ Nuevo</button>}</div>{error&&<div className="live-error">{error}</div>}{loading?<div className="live-empty">Cargando…</div>:<View k={active} d={data} user={user} refresh={refresh} go={(m:string)=>setActive(m as Key)}/>}</div><footer><span>JFMCSS Control</span><span><i/> PostgreSQL · RBAC · Audit</span><span>v1.0</span></footer></main>{modal&&<Create type={modal} user={user} close={()=>setModal(null)} done={()=>{setModal(null);refresh()}}/>}{palette&&<CommandPalette close={()=>setPalette(false)} go={(m:string)=>{setActive(m as Key);setPalette(false)}}/>}</div>
+ return <div className="app-shell"><aside className="sidebar live-sidebar"><div className="sidebar-brand"><div className="live-logo">J</div><div><strong>JFMCSS</strong><span>CONTROL</span></div></div><nav>{menu.map(([k,l,i])=><button key={k} onClick={()=>setActive(k)} className={active===k?'active':''}><span className="nav-icon">{i}</span><span>{l}</span>{k==='notifications'&&notifUnread>0&&<span className="nav-badge">{notifUnread>99?'99+':notifUnread}</span>}</button>)}</nav><div className="sidebar-bottom"><div className="workspace"><div className="avatar live-avatar">{user.name.split(' ').slice(0,2).map(x=>x[0]).join('')}</div><div><b>{user.name}</b><span>{user.role}</span></div></div><button onClick={logout}><span className="nav-icon">↪</span><span>Cerrar sesión</span></button></div></aside><main className="main-shell"><header className="topbar"><span className="breadcrumb">JFMCSS <b>/</b> {menu.find(x=>x[0]===active)?.[1]}</span><div className="topbar-right"><button className="global-search-btn" onClick={()=>setPalette(true)}>◎ Buscar<kbd>⌘K</kbd></button>{active==='clients'&&<input className="live-top-search" placeholder="Buscar cliente…" value={q} onChange={e=>setQ(e.target.value)}/>}</div></header><div className="content"><div className="page-header"><div><div className="eyebrow">LIVE WORKSPACE</div><h1>{menu.find(x=>x[0]===active)?.[1]}</h1><p>{subtitles[active]}</p></div>{(createAllowed||(active==='support'&&user.role==='CLIENT'))&&<button className="primary-btn" onClick={()=>setModal(active)}>＋ Nuevo</button>}</div>{error&&<div className="live-error">{error}</div>}{loading?<div className="live-empty">Cargando…</div>:<View k={active} d={data} user={user} refresh={refresh} go={(m:string)=>setActive(m as Key)} onNotifCount={setNotifUnread}/>}</div><footer><span>JFMCSS Control</span><span><i/> PostgreSQL · RBAC · Audit</span><span>v1.0</span></footer></main>{modal&&<Create type={modal} user={user} close={()=>setModal(null)} done={()=>{setModal(null);refresh()}}/>}{palette&&<CommandPalette close={()=>setPalette(false)} go={(m:string)=>{setActive(m as Key);setPalette(false)}}/>}</div>
 }
 
-function View({k,d,user,refresh,go}:{k:Key;d:any;user:User;refresh:()=>void;go:(m:string)=>void}){
+function View({k,d,user,refresh,go,onNotifCount}:{k:Key;d:any;user:User;refresh:()=>void;go:(m:string)=>void;onNotifCount:(n:number)=>void}){
  if(k==='dashboard')return <Dashboard d={d} onGo={go}/>;
  if(k==='reports')return <Reports/>;
  if(k==='clients')return <Clients rows={d?.clients||[]}/>;
@@ -38,7 +39,7 @@ function View({k,d,user,refresh,go}:{k:Key;d:any;user:User;refresh:()=>void;go:(
  if(k==='payments')return <Payments rows={d?.payments||[]} user={user}/>;
  if(k==='support')return <SupportView rows={d?.tickets||[]} user={user} refresh={refresh}/>;
  if(k==='assets')return <Assets rows={d?.assets||[]}/>;
- if(k==='notifications')return <Notifications rows={d?.notifications||[]} refresh={refresh}/>;
+ if(k==='notifications')return <Notifications onCount={onNotifCount}/>;
  if(k==='automations')return <Automations rows={d?.automations||[]}/>;
  return <Settings user={user}/>;
 }
@@ -109,7 +110,49 @@ function Assets({rows}:{rows:Row[]}){
   {!rows.length?<Empty t="No hay activos"/>:<Table h={['Activo','Cliente','Tipo','Renovación','Días','Precio','Facturación']}>{rows.map(x=><tr key={x.id}><td><b>{x.name}</b><small>{x.provider||'—'}</small></td><td>{x.client_name}</td><td><B v={x.type}/></td><td>{D(x.renewal_date)}</td><td className={Number(x.days_to_renewal)<=7?'money-due':''}>{x.days_to_renewal??'—'}</td><td>{M(x.recurring_price)}<small>{x.billing_cycle?.toLowerCase()}</small></td><td>{x.auto_invoice?<span className="live-badge accepted">AUTO · {D(x.next_invoice_date)}</span>:<span className="live-badge draft">Manual</span>}</td></tr>)}</Table>}
  </>;
 }
-function Notifications({rows,refresh}:{rows:Row[];refresh:()=>void}){if(!rows.length)return <Empty t="No hay notificaciones"/>;return <div className="panel live-list">{rows.map(x=><button key={x.id} className={x.status==='READ'?'read':''} onClick={async()=>{await api('/api/notifications',{method:'PATCH',body:JSON.stringify({id:x.id})});refresh()}}><div><b>{x.title}</b><p>{x.body}</p></div><B v={x.status}/></button>)}</div>}
+const CAT_LABEL:Record<string,string>={SYSTEM:'Sistema',BILLING:'Facturación',SUPPORT:'Soporte',SALES:'Ventas',RENEWAL:'Renovaciones',PROJECT:'Proyectos'};
+const NOTIF_CATS=['SYSTEM','BILLING','SUPPORT','SALES','RENEWAL','PROJECT'];
+function timeAgo(v:any){if(!v)return '';const s=(Date.now()-new Date(v).getTime())/1000;if(s<60)return 'ahora';if(s<3600)return `hace ${Math.floor(s/60)} min`;if(s<86400)return `hace ${Math.floor(s/3600)} h`;if(s<604800)return `hace ${Math.floor(s/86400)} d`;return new Date(v).toLocaleDateString('es-DO')}
+function Notifications({onCount}:{onCount:(n:number)=>void}){
+ const[d,setD]=useState<Row|null>(null),[filter,setFilter]=useState<'all'|'unread'>('all'),[cat,setCat]=useState(''),[busy,setBusy]=useState(false),[prefsOpen,setPrefsOpen]=useState(false);
+ const load=()=>{const qs=new URLSearchParams();if(filter==='unread')qs.set('filter','unread');if(cat)qs.set('category',cat);api('/api/notifications?'+qs.toString()).then(r=>{setD(r);onCount(r.unreadCount||0)}).catch(()=>setD({error:1}))};
+ useEffect(()=>{load()},[filter,cat]);// eslint-disable-line react-hooks/exhaustive-deps
+ async function markOne(x:Row){if(x.read_at)return;try{await api('/api/notifications',{method:'PATCH',body:JSON.stringify({id:x.id})})}catch{}load()}
+ async function markAll(){setBusy(true);try{await api('/api/notifications',{method:'PATCH',body:JSON.stringify({all:true,...(cat?{category:cat}:{})})});load()}catch(e){alert((e as Error).message)}finally{setBusy(false)}}
+ if(d?.error)return <div className="live-empty small">No se pudieron cargar las notificaciones.</div>;
+ if(!d)return <Empty t="Cargando…"/>;
+ const rows:Row[]=d.notifications||[];const ubc:Record<string,number>=d.unreadByCategory||{};const total=Number(d.unreadCount||0);
+ return <div className="notif-center">
+  <div className="notif-toolbar">
+   <div className="notif-filters">
+    <button className={filter==='all'&&!cat?'on':''} onClick={()=>{setFilter('all');setCat('')}}>Todas</button>
+    <button className={filter==='unread'&&!cat?'on':''} onClick={()=>{setFilter('unread');setCat('')}}>No leídas{total>0?` · ${total}`:''}</button>
+    {NOTIF_CATS.map(c=><button key={c} className={cat===c?'on':''} onClick={()=>setCat(cat===c?'':c)}>{CAT_LABEL[c]}{ubc[c]?` · ${ubc[c]}`:''}</button>)}
+   </div>
+   <div className="notif-actions">
+    <button onClick={()=>setPrefsOpen(true)}>⚙ Preferencias</button>
+    <button disabled={busy||!total} onClick={markAll}>Marcar {cat?CAT_LABEL[cat].toLowerCase():'todo'} como leído</button>
+   </div>
+  </div>
+  {!rows.length?<div className="live-empty small">{filter==='unread'||cat?'Nada pendiente aquí.':'No hay notificaciones.'}</div>:
+   <div className="panel notif-list">{rows.map(x=><button key={x.id} className={x.read_at?'read':'unread'} onClick={()=>markOne(x)}>
+    <span className={`notif-dot cat-${(x.category||'system').toLowerCase()}`}/>
+    <div className="notif-body"><b>{x.title}</b><p>{x.body}</p></div>
+    <div className="notif-meta"><span className="notif-cat">{CAT_LABEL[x.category]||x.category}</span><time>{timeAgo(x.created_at)}</time></div>
+   </button>)}</div>}
+  {prefsOpen&&<NotifPrefs prefs={d.prefs} close={()=>setPrefsOpen(false)} saved={()=>{setPrefsOpen(false);load()}}/>}
+ </div>;
+}
+function NotifPrefs({prefs,close,saved}:{prefs:Row;close:()=>void;saved:()=>void}){
+ const[muted,setMuted]=useState<string[]>(prefs?.mutedCategories||[]);const[busy,setBusy]=useState(false);
+ const toggle=(c:string)=>setMuted(m=>m.includes(c)?m.filter(x=>x!==c):[...m,c]);
+ async function save(){setBusy(true);try{await api('/api/notifications/prefs',{method:'PATCH',body:JSON.stringify({mutedCategories:muted})});saved()}catch(e){alert((e as Error).message)}finally{setBusy(false)}}
+ return <Modal title="Preferencias de notificación" close={close}><div className="notif-prefs">
+  <p>Silencia las categorías que no quieras ver en tu bandeja. Los correos que reciben los clientes no se ven afectados.</p>
+  {NOTIF_CATS.map(c=><label key={c} className="notif-pref-row"><span>{CAT_LABEL[c]}</span><input type="checkbox" checked={!muted.includes(c)} onChange={()=>toggle(c)}/><small>{muted.includes(c)?'Silenciada':'Activa'}</small></label>)}
+  <button className="primary-btn" disabled={busy} onClick={save}>Guardar</button>
+ </div></Modal>;
+}
 function Automations({rows}:{rows:Row[]}){if(!rows.length)return <Empty t="Sin reglas personalizadas. El cron diario ya procesa vencimientos, renovaciones y SLA."/>;return <div className="live-grid">{rows.map(x=><article className="panel live-card" key={x.id}><div><span className="eyebrow">{x.event}</span><B v={x.enabled?'ACTIVE':'INACTIVE'}/></div><h3>{x.name}</h3><p className="mono">{JSON.stringify(x.actions)}</p></article>)}</div>}
 function Settings({user}:{user:User}){return <SettingsPanel user={user}/>}
 

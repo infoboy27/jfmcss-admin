@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     );
     await Promise.all(
       admins.rows.map((a) =>
-        notifyInApp(a.id, `Nuevo ticket ${ticket.number}`, `${priority} · ${subject}`, clientId, { ticketId: ticket.id }),
+        notifyInApp(a.id, `Nuevo ticket ${ticket.number}`, `${priority} · ${subject}`, clientId, { ticketId: ticket.id }, "SUPPORT"),
       ),
     );
     if (priority === "URGENT") {

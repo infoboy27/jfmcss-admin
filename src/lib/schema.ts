@@ -80,7 +80,21 @@ export const contactUpdateSchema = z.object({
   title: optStr(120),
   isPrimary: z.boolean().optional(),
 });
-export const notificationReadSchema = z.object({ id: id });
+const notificationCategory = z.enum(["SYSTEM", "BILLING", "SUPPORT", "SALES", "RENEWAL", "PROJECT"]);
+/** Mark one (`id`), several (`ids`), or a whole category / everything (`all`). */
+export const notificationPatchSchema = z
+  .object({
+    id: optId,
+    ids: z.array(id).max(500).optional(),
+    all: z.boolean().optional(),
+    category: notificationCategory.optional(),
+  })
+  .refine((v) => v.id || v.ids?.length || v.all, "nada que marcar");
+export const notificationPrefsSchema = z.object({
+  emailEnabled: z.boolean().optional(),
+  whatsappEnabled: z.boolean().optional(),
+  mutedCategories: z.array(notificationCategory).max(6).optional(),
+});
 
 // ─── sales / projects / tasks ───────────────────────────────────────────────
 export const opportunityCreateSchema = z.object({

@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     for (const inv of overdue) {
       const balance = rd(Number(inv.total) - Number(inv.paid_amount));
       for (const u of team) {
-        await notifyInAppOnce(u.id, `overdue:${inv.id}`, `Factura vencida ${inv.number}`, `Balance ${balance}`, inv.client_id);
+        await notifyInAppOnce(u.id, `overdue:${inv.id}`, `Factura vencida ${inv.number}`, `Balance ${balance}`, inv.client_id, "BILLING");
       }
     }
     for (const inv of dueSoon) {
@@ -85,12 +85,13 @@ export async function POST(request: Request) {
           `Renovación próxima: ${a.name}`,
           `${a.client_name} · ${a.type} · ${String(a.renewal_date).slice(0, 10)}`,
           a.client_id,
+          "RENEWAL",
         );
       }
     }
     for (const t of sla) {
       for (const u of team) {
-        await notifyInAppOnce(u.id, `sla:${t.id}`, `SLA en riesgo ${t.number}`, t.subject, t.client_id);
+        await notifyInAppOnce(u.id, `sla:${t.id}`, `SLA en riesgo ${t.number}`, t.subject, t.client_id, "SUPPORT");
       }
     }
 

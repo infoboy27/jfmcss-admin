@@ -3,6 +3,18 @@ import { query, tx } from "./db";
 
 type Channel = "IN_APP" | "EMAIL" | "WHATSAPP";
 
+export type NotificationCategory = "SYSTEM" | "BILLING" | "SUPPORT" | "SALES" | "RENEWAL" | "PROJECT";
+export const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
+  "SYSTEM",
+  "BILLING",
+  "SUPPORT",
+  "SALES",
+  "RENEWAL",
+  "PROJECT",
+];
+const isCategory = (v: unknown): v is NotificationCategory =>
+  typeof v === "string" && (NOTIFICATION_CATEGORIES as string[]).includes(v);
+
 async function insertNotification(input: {
   userId?: string | null;
   clientId?: string | null;
@@ -11,10 +23,19 @@ async function insertNotification(input: {
   body: string;
   destination?: string | null;
   metadata?: Record<string, unknown>;
+  category?: string;
 }) {
+  const category = isCategory(input.category) ? input.category : "SYSTEM";
+  // An in-app notification aimed at a specific user is dropped if that user has
+  // muted the category — the row is simply never written.
+  const muteGuard =
+    input.channel === "IN_APP" && input.userId
+      ? ` AND NOT EXISTS (SELECT 1 FROM notification_prefs p WHERE p.user_id=$1 AND p.muted_categories ? $8)`
+      : "";
   const { rows } = await query<{ id: string }>(
-    `INSERT INTO notifications(user_id,client_id,channel,title,body,destination,metadata)
-     VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+    `INSERT INTO notifications(user_id,client_id,channel,title,body,destination,metadata,category)
+     SELECT $1,$2,$3,$4,$5,$6,$7,$8 WHERE true${muteGuard}
+     RETURNING id`,
     [
       input.userId ?? null,
       input.clientId ?? null,
@@ -23,6 +44,7 @@ async function insertNotification(input: {
       input.body,
       input.destination ?? null,
       JSON.stringify(input.metadata ?? {}),
+      category,
     ],
   );
   return rows[0]?.id;
@@ -37,10 +59,11 @@ export async function notifyInApp(
   body: string,
   clientId?: string | null,
   metadata?: Record<string, unknown>,
+  category: NotificationCategory = "SYSTEM",
 ) {
-  const id = await insertNotification({ userId, clientId, channel: "IN_APP", title, body, metadata });
-  await query(`UPDATE notifications SET status='SENT',sent_at=now() WHERE id=$1`, [id]);
-  return id;
+  const id = await insertNotification({ userId, clientId, channel: "IN_APP", title, body, metadata, category });
+  if (id) await query(`UPDATE notifications SET status='SENT',sent_at=now() WHERE id=$1`, [id]);
+  return id ?? null;
 }
 
 /**
@@ -54,6 +77,7 @@ export async function notifyInAppOnce(
   title: string,
   body: string,
   clientId?: string | null,
+  category: NotificationCategory = "SYSTEM",
 ) {
   const existing = await query<{ id: string }>(
     `SELECT id FROM notifications
@@ -63,7 +87,118 @@ export async function notifyInAppOnce(
     [userId, dedupKey],
   );
   if (existing.rows.length) return null;
-  return notifyInApp(userId, title, body, clientId, { dedup: dedupKey });
+  return notifyInApp(userId, title, body, clientId, { dedup: dedupKey }, category);
+}
+
+// ─── in-app inbox (notification center) ─────────────────────────────────────
+
+export type InboxOptions = { filter?: "all" | "unread"; category?: string; before?: string; limit?: number };
+
+/** A user's in-app feed, newest first, with keyset pagination via `before`. */
+export async function notificationInbox(userId: string, opts: InboxOptions = {}) {
+  const params: unknown[] = [userId];
+  const conds = [`channel='IN_APP'`, `(user_id=$1 OR user_id IS NULL)`];
+  if (opts.filter === "unread") conds.push(`read_at IS NULL`);
+  if (isCategory(opts.category)) {
+    params.push(opts.category);
+    conds.push(`category=$${params.length}`);
+  }
+  if (opts.before) {
+    params.push(opts.before);
+    conds.push(`created_at < $${params.length}`);
+  }
+  params.push(Math.min(Math.max(Number(opts.limit) || 40, 1), 100));
+  const { rows } = await query(
+    `SELECT id,title,body,category,status,read_at,created_at,client_id,metadata
+       FROM notifications WHERE ${conds.join(" AND ")}
+      ORDER BY created_at DESC LIMIT $${params.length}`,
+    params,
+  );
+  return rows;
+}
+
+export async function unreadCount(userId: string) {
+  const { rows } = await query<{ n: number }>(
+    `SELECT count(*)::int n FROM notifications
+      WHERE channel='IN_APP' AND read_at IS NULL AND (user_id=$1 OR user_id IS NULL)`,
+    [userId],
+  );
+  return Number(rows[0]?.n ?? 0);
+}
+
+/** Per-category unread tallies for the filter chips. */
+export async function unreadByCategory(userId: string) {
+  const { rows } = await query<{ category: string; n: number }>(
+    `SELECT category, count(*)::int n FROM notifications
+      WHERE channel='IN_APP' AND read_at IS NULL AND (user_id=$1 OR user_id IS NULL)
+      GROUP BY category`,
+    [userId],
+  );
+  return Object.fromEntries(rows.map((r) => [r.category, Number(r.n)]));
+}
+
+export async function markNotificationsRead(userId: string, ids: string[]) {
+  if (!ids.length) return 0;
+  const { rowCount } = await query(
+    `UPDATE notifications SET status='READ',read_at=now()
+      WHERE id = ANY($1) AND read_at IS NULL AND channel='IN_APP' AND (user_id=$2 OR user_id IS NULL)`,
+    [ids, userId],
+  );
+  return rowCount ?? 0;
+}
+
+export async function markAllNotificationsRead(userId: string, category?: string) {
+  const params: unknown[] = [userId];
+  let catClause = "";
+  if (isCategory(category)) {
+    params.push(category);
+    catClause = ` AND category=$2`;
+  }
+  const { rowCount } = await query(
+    `UPDATE notifications SET status='READ',read_at=now()
+      WHERE channel='IN_APP' AND read_at IS NULL AND (user_id=$1 OR user_id IS NULL)${catClause}`,
+    params,
+  );
+  return rowCount ?? 0;
+}
+
+// ─── per-user delivery preferences ─────────────────────────────────────────
+
+export type NotificationPrefs = { emailEnabled: boolean; whatsappEnabled: boolean; mutedCategories: string[] };
+const DEFAULT_PREFS: NotificationPrefs = { emailEnabled: true, whatsappEnabled: true, mutedCategories: [] };
+
+export async function getNotificationPrefs(userId: string): Promise<NotificationPrefs> {
+  const { rows } = await query<{ email_enabled: boolean; whatsapp_enabled: boolean; muted_categories: unknown }>(
+    `SELECT email_enabled,whatsapp_enabled,muted_categories FROM notification_prefs WHERE user_id=$1`,
+    [userId],
+  );
+  const r = rows[0];
+  if (!r) return { ...DEFAULT_PREFS };
+  return {
+    emailEnabled: r.email_enabled !== false,
+    whatsappEnabled: r.whatsapp_enabled !== false,
+    mutedCategories: Array.isArray(r.muted_categories) ? r.muted_categories.filter(isCategory) : [],
+  };
+}
+
+export async function setNotificationPrefs(
+  userId: string,
+  patch: Partial<NotificationPrefs>,
+): Promise<NotificationPrefs> {
+  const cur = await getNotificationPrefs(userId);
+  const next: NotificationPrefs = {
+    emailEnabled: patch.emailEnabled ?? cur.emailEnabled,
+    whatsappEnabled: patch.whatsappEnabled ?? cur.whatsappEnabled,
+    mutedCategories: [...new Set((patch.mutedCategories ?? cur.mutedCategories).filter(isCategory))],
+  };
+  await query(
+    `INSERT INTO notification_prefs(user_id,email_enabled,whatsapp_enabled,muted_categories,updated_at)
+     VALUES($1,$2,$3,$4::jsonb,now())
+     ON CONFLICT(user_id) DO UPDATE SET email_enabled=excluded.email_enabled,
+       whatsapp_enabled=excluded.whatsapp_enabled,muted_categories=excluded.muted_categories,updated_at=now()`,
+    [userId, next.emailEnabled, next.whatsappEnabled, JSON.stringify(next.mutedCategories)],
+  );
+  return next;
 }
 
 /**

@@ -1,7 +1,43 @@
 import { requireUser } from "@/lib/auth";
-import { query } from "@/lib/db";
 import { apiError, ok } from "@/lib/http";
-import { parseBody, notificationReadSchema } from "@/lib/schema";
+import { parseBody, notificationPatchSchema } from "@/lib/schema";
+import {
+  notificationInbox,
+  unreadCount,
+  unreadByCategory,
+  getNotificationPrefs,
+  markNotificationsRead,
+  markAllNotificationsRead,
+} from "@/lib/notifications";
 
-export async function GET(){try{const user=await requireUser();const{rows}=await query(`SELECT * FROM notifications WHERE user_id=$1 OR (user_id IS NULL AND channel='IN_APP') ORDER BY created_at DESC LIMIT 100`,[user.id]);return ok({notifications:rows})}catch(e){return apiError(e)}}
-export async function PATCH(request:Request){try{const user=await requireUser();const b=await parseBody(request, notificationReadSchema);await query(`UPDATE notifications SET status='READ',read_at=now() WHERE id=$1 AND (user_id=$2 OR user_id IS NULL)`,[b.id,user.id]);return ok({ok:true})}catch(e){return apiError(e)}}
+export async function GET(request: Request) {
+  try {
+    const user = await requireUser();
+    const url = new URL(request.url);
+    const filter = url.searchParams.get("filter") === "unread" ? "unread" : "all";
+    const category = url.searchParams.get("category") ?? undefined;
+    const before = url.searchParams.get("before") ?? undefined;
+    const [notifications, unread, byCategory, prefs] = await Promise.all([
+      notificationInbox(user.id, { filter, category, before, limit: 40 }),
+      unreadCount(user.id),
+      unreadByCategory(user.id),
+      getNotificationPrefs(user.id),
+    ]);
+    return ok({ notifications, unreadCount: unread, unreadByCategory: byCategory, prefs });
+  } catch (e) {
+    return apiError(e);
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const user = await requireUser();
+    const b = await parseBody(request, notificationPatchSchema);
+    let marked = 0;
+    if (b.all) marked = await markAllNotificationsRead(user.id, b.category);
+    else marked = await markNotificationsRead(user.id, [b.id, ...(b.ids ?? [])].filter(Boolean) as string[]);
+    return ok({ marked, unreadCount: await unreadCount(user.id) });
+  } catch (e) {
+    return apiError(e);
+  }
+}
