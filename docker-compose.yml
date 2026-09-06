@@ -1,5 +1,33 @@
 # Local / single-host development stack.
 # Copy .env.example to .env and set real values before `docker compose up`.
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql://${POSTGRES_USER:-jfmcss}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-jfmcss}
+  PG_SSL: ${PG_SSL:-false}
+  APP_URL: ${APP_URL:-http://localhost:3000}
+  SESSION_DAYS: ${SESSION_DAYS:-7}
+  BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:?set BOOTSTRAP_ADMIN_EMAIL in .env}
+  BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?set BOOTSTRAP_ADMIN_PASSWORD in .env}
+  BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-JFMCSS Admin}
+  CRON_SECRET: ${CRON_SECRET:?set CRON_SECRET in .env}
+  LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-10}
+  LOGIN_RATE_WINDOW_SECONDS: ${LOGIN_RATE_WINDOW_SECONDS:-300}
+  UPLOAD_DIR: /app/data/uploads
+  MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-15}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_SECURE: ${SMTP_SECURE:-false}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASS: ${SMTP_PASS:-}
+  SMTP_FROM: ${SMTP_FROM:-JFMCSS <notificaciones@jfmcss.com>}
+  WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+  WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+  WHATSAPP_DEFAULT_COUNTRY_CODE: ${WHATSAPP_DEFAULT_COUNTRY_CODE:-1}
+  ECF_ENABLED: ${ECF_ENABLED:-false}
+  ECF_PROVIDER_URL: ${ECF_PROVIDER_URL:-}
+  ECF_PROVIDER_TOKEN: ${ECF_PROVIDER_TOKEN:-}
+  ECF_RNC: ${ECF_RNC:-}
+
 services:
   db:
     image: postgres:17-alpine
@@ -13,12 +41,22 @@ services:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - jfmcss_pg:/var/lib/postgresql/data
-      - ./db:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jfmcss} -d ${POSTGRES_DB:-jfmcss}"]
       interval: 5s
       timeout: 3s
       retries: 20
+
+  # Runs pending SQL migrations once, then exits. The app waits for this to
+  # complete successfully before starting.
+  migrate:
+    build: .
+    command: ["node", "scripts/migrate.mjs"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment: *app-env
 
   app:
     build: .
@@ -26,29 +64,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-jfmcss}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-jfmcss}
-      APP_URL: ${APP_URL:-http://localhost:3000}
-      SESSION_DAYS: ${SESSION_DAYS:-7}
-      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:?set BOOTSTRAP_ADMIN_EMAIL in .env}
-      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?set BOOTSTRAP_ADMIN_PASSWORD in .env}
-      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-JFMCSS Admin}
-      CRON_SECRET: ${CRON_SECRET:?set CRON_SECRET in .env}
-      UPLOAD_DIR: /app/data/uploads
-      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-15}
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_SECURE: ${SMTP_SECURE:-false}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASS: ${SMTP_PASS:-}
-      SMTP_FROM: ${SMTP_FROM:-JFMCSS <notificaciones@jfmcss.com>}
-      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
-      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
-      WHATSAPP_DEFAULT_COUNTRY_CODE: ${WHATSAPP_DEFAULT_COUNTRY_CODE:-1}
-      ECF_ENABLED: ${ECF_ENABLED:-false}
-      ECF_PROVIDER_URL: ${ECF_PROVIDER_URL:-}
-      ECF_PROVIDER_TOKEN: ${ECF_PROVIDER_TOKEN:-}
-      ECF_RNC: ${ECF_RNC:-}
+      migrate:
+        condition: service_completed_successfully
+    environment: *app-env
     ports:
       - "127.0.0.1:${APP_PORT:-3000}:3000"
     volumes:

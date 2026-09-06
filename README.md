@@ -38,9 +38,13 @@ Without Docker:
 npm ci
 createdb jfmcss
 export DATABASE_URL='postgresql://...'
-npm run db:init
+npm run db:migrate   # apply db/migrations/*.sql  (npm run db:status to preview)
 npm run dev
 ```
+
+Schema changes are forward-only SQL files in `db/migrations/` (`NNNN_name.sql`).
+The `migrate` compose service applies pending migrations before the app starts;
+in other environments run `npm run db:migrate`.
 
 ## Quality gates
 
