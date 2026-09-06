@@ -37,6 +37,12 @@ What it is not yet:
   thread, several number generators still race.
 - `AdminApp.tsx` was a dead hardcoded mock (removed).
 
+**Update (ownership pass in progress):** the entire "not yet" list above except the
+product modules has been addressed — migrations, envelope + Zod, CSRF/Origin guard,
+notification outbox, race-safe numbering, centralized client scope, 41 tests, deployed
+to `https://control.jfmcss.com`. Remaining: the product modules (proposals, recurring
+billing, reports, …) and the DB-backed integration test suite.
+
 ---
 
 ## 2. Findings by severity
@@ -59,12 +65,12 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 | # | Finding | Status |
 |---|---------|--------|
 | H1 | **No CSRF / Origin defense.** JSON routes are largely protected by `SameSite=lax` + non-simple content type, but `/api/documents` POST accepts `multipart/form-data`, which an auto-submitting cross-site form can send with the victim's cookie. | ✅ `src/proxy.ts` rejects any state-changing request whose `Origin` isn't this host. |
-| H2 | **No automated tests** for authentication, RBAC, cross-client isolation, invoice math, NCF concurrency, payment reconciliation, recurring-invoice idempotency, SLA, file authorization, proposal conversion — the exact list the brief calls out. | 🔧 unit tests added for invoice math / rate limiter / validators; integration suite still to build. |
+| H2 | **No automated tests** for authentication, RBAC, cross-client isolation, invoice math, NCF concurrency, payment reconciliation, recurring-invoice idempotency, SLA, file authorization, proposal conversion — the exact list the brief calls out. | 🔧 41 unit tests: invoice math, rate limiter, validators, envelope, Zod schemas, client-scope guard. DB-backed integration suite (concurrency, reconciliation) still to build. |
 | H3 | `nextHumanNumber()` (tickets, projects) reads `MAX(number)` then `+1` with **no lock/transaction** → concurrent creation collides on the unique index. Invoice numbering was fixed; these were not. | ✅ takes a transaction advisory lock; ticket/project creation runs allocation + insert in one `tx()`. |
-| H4 | Notifications (`sendEmail`, `sendWhatsApp`) are **awaited inside the request handler** — a slow SMTP host stalls invoice/payment/ticket responses. | ⬜ move to a queue/outbox drained by the cron worker; keep in-app notification synchronous. |
-| H5 | Cross-client isolation is enforced by ~12 hand-copied `if (role==='CLIENT' && x.client_id!==user.clientId)` checks. One omission = an IDOR. | ⬜ centralize into a query-layer scope helper + isolation tests (see H2). |
-| H6 | `db.ts` pool has **no `pool.on('error')` handler** → an idle-client network error takes down the Node process. No pruning of expired `sessions`. | 🔧 pool error handler added; session pruning in the daily cron still open. |
-| H7 | `submitEcf()` and WhatsApp `fetch` calls have **no timeout** → a hung provider hangs the request. | ⬜ wrap in `AbortSignal.timeout()`. |
+| H4 | Notifications (`sendEmail`, `sendWhatsApp`) are **awaited inside the request handler** — a slow SMTP host stalls invoice/payment/ticket responses. | ✅ `sendEmail`/`sendWhatsApp` now only write a PENDING outbox row; `/api/cron/notifications` delivers with backoff + `FOR UPDATE SKIP LOCKED`. |
+| H5 | Cross-client isolation is enforced by ~12 hand-copied `if (role==='CLIENT' && x.client_id!==user.clientId)` checks. One omission = an IDOR. | ✅ centralized in `src/lib/scope.ts` (`assertClientAccess`/`clientScope`/`resolveClientId`), applied to the detail/mutation routes, 10 unit tests. Query-layer default-scoping still worth adding. |
+| H6 | `db.ts` pool has **no `pool.on('error')` handler** → an idle-client network error takes down the Node process. No pruning of expired `sessions`. | ✅ pool error handler + expired-session pruning in the daily cron. |
+| H7 | `submitEcf()` and WhatsApp `fetch` calls have **no timeout** → a hung provider hangs the request. | ✅ `AbortSignal.timeout()` on both, plus SMTP connection/socket timeouts. |
 
 ### MEDIUM
 
@@ -73,14 +79,14 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 | M1 | `/api/invoices/[id]` `VOID` does not check the invoice isn't already `PAID`/settled, and there is **no credit-note flow** — voiding an issued fiscal document is not how DGII expects corrections to be handled. |
 | M2 | Uploaded files trust the client-supplied `file.type`; no magic-byte sniffing. Downloads are `attachment` + CSP so XSS risk is low, but validation should not rely on the client. |
 | M3 | `/api/documents/[id]/download` does `Response.redirect(d.url)` for non-`local:` URLs. No INSERT path creates remote URLs yet, but the column allows them — validate scheme/host before ever redirecting (SSRF/open-redirect defense-in-depth). |
-| M4 | `cron/daily` notification inserts are **not idempotent** — a second run the same day re-sends "invoice overdue"/"renewal due" emails. Only the `OVERDUE` status UPDATE is safe to repeat. |
-| M5 | No `updated_at` triggers; the column is only maintained where a handler remembers to set it. |
+| M4 | ✅ `cron/daily` now routes every reminder through `notifyInAppOnce` (20h dedup window); due-soon emails are queued, not re-sent inline. |
+| M5 | ✅ `updated_at` triggers on every table with the column (migration 0002). |
 | M6 | `health_score` is a static column (default 100), never computed. The brief wants an explainable algorithm. |
 | M7 | No pagination — every list route is a hard `LIMIT 250/500` and the client renders all rows. Won't scale past a few hundred records. |
 | M8 | Money is JS `number` end to end. `calculateInvoice` now rounds every step; other paths (dashboard sums, `paid_amount`) rely on Postgres `numeric`, which is fine, but the boundary is inconsistent. |
-| M9 | `ticket_messages` POST accepts unbounded `billableMinutes`; no validation/cap. |
+| M9 | ✅ `ticketMessageSchema` caps `billableMinutes` at 24h. |
 | M10 | `submitEcf` failure still leaves the invoice `ISSUED` with an allocated NCF (`ecf_status='FAILED'`). For real e-CF this is a business decision that must be made explicitly. |
-| M11 | No migrations. `db/init.sql` is `CREATE … IF NOT EXISTS`; schema evolution will be ad hoc `ALTER`s. |
+| M11 | ✅ versioned migrations (`db/migrations/*.sql` + `scripts/migrate.mjs`, checksum-guarded, one-shot `migrate` compose service). |
 
 ### LOW
 

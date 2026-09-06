@@ -69,14 +69,23 @@ docker compose -p jfmcss-admin \
 
 Health probes: `GET /api/health` (liveness), `GET /api/health/ready` (DB + schema).
 
-## Daily automation
+## Scheduled jobs
 
-Call once per day from cron or your infrastructure scheduler:
+Both endpoints authenticate with `Authorization: Bearer $CRON_SECRET` and are
+safe to call repeatedly.
+
+| Endpoint | Cadence | Purpose |
+|---|---|---|
+| `POST /api/cron/notifications` | every 1–2 min | drain the email/WhatsApp outbox (retries with backoff) |
+| `POST /api/cron/daily` | once per day | overdue invoices, due-soon reminders, renewals, SLA risk, session pruning |
 
 ```bash
-curl -X POST https://control.example.com/api/cron/daily \
-  -H "Authorization: Bearer $CRON_SECRET"
+* * * * *  curl -fsS -X POST https://control.example.com/api/cron/notifications -H "Authorization: Bearer $CRON_SECRET"
+15 6 * * * curl -fsS -X POST https://control.example.com/api/cron/daily          -H "Authorization: Bearer $CRON_SECRET"
 ```
+
+Outbound email/WhatsApp is queued, never sent inline — a slow or down provider
+never blocks an invoice/payment/ticket request.
 
 ## Fiscal / DGII note
 
