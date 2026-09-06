@@ -27,13 +27,14 @@ export default function LiveControl({user}:{user:User}){
 }
 
 function View({k,d,user,refresh}:{k:Key;d:any;user:User;refresh:()=>void}){
- if(k==='dashboard'||k==='reports')return <Dashboard d={d} report={k==='reports'}/>;
+ if(k==='dashboard')return <Dashboard d={d} report={false}/>;
+ if(k==='reports')return <Reports/>;
  if(k==='clients')return <Clients rows={d?.clients||[]}/>;
  if(k==='sales')return <Sales rows={d?.opportunities||[]}/>;
  if(k==='proposals')return <Proposals rows={d?.proposals||[]} user={user} refresh={refresh}/>;
  if(k==='projects')return <Projects rows={d?.projects||[]} user={user}/>;
  if(k==='billing')return <Invoices rows={d?.invoices||[]} user={user} refresh={refresh}/>;
- if(k==='payments')return <Payments rows={d?.payments||[]}/>;
+ if(k==='payments')return <Payments rows={d?.payments||[]} user={user}/>;
  if(k==='support')return <SupportView rows={d?.tickets||[]} user={user} refresh={refresh}/>;
  if(k==='assets')return <Assets rows={d?.assets||[]}/>;
  if(k==='notifications')return <Notifications rows={d?.notifications||[]} refresh={refresh}/>;
@@ -59,7 +60,31 @@ function Invoices({rows,user,refresh}:{rows:Row[];user:User;refresh:()=>void}){
  if(!rows.length)return <Empty t="No hay facturas"/>;
  return <Table h={['Documento','Cliente','NCF/e-NCF','Vence','Total','Balance','Estado','']}>{rows.map(x=><tr key={x.id}><td><b>{x.number}</b><small>{x.document_kind==='CREDIT_NOTE'?'Nota de crédito':x.fiscal_type}</small></td><td>{x.client_name}</td><td className="mono">{x.ncf||'Borrador'}</td><td>{D(x.due_date)}</td><td>{x.document_kind==='CREDIT_NOTE'?`−${M(x.total)}`:M(x.total)}</td><td>{M(Number(x.total)-Number(x.paid_amount))}</td><td><B v={x.status}/></td><td className="prop-actions"><a className="live-link" target="_blank" href={`/api/invoices/${x.id}/pdf`}>PDF ↗</a>{canFin&&x.document_kind!=='CREDIT_NOTE'&&['ISSUED','PARTIAL','PAID','OVERDUE'].includes(x.status)&&<button onClick={()=>credit(x)}>Nota crédito</button>}</td></tr>)}</Table>;
 }
-function Payments({rows}:{rows:Row[]}){if(!rows.length)return <Empty t="No hay cobros"/>;return <Table h={['Fecha','Cliente','Factura','Método','Referencia','Monto']}>{rows.map(x=><tr key={x.id}><td>{D(x.paid_at)}</td><td>{x.client_name}</td><td>{x.invoice_number||'—'}</td><td><B v={x.method}/></td><td>{x.reference||'—'}</td><td><b>{M(x.amount)}</b></td></tr>)}</Table>}
+function MiniBarChart({data}:{data:Row[]}){const max=Math.max(1,...data.flatMap(d=>[Number(d.billed),Number(d.collected)]));return <div className="mini-chart">{data.map(d=><div key={d.month} className="mc-col"><div className="mc-bars"><i style={{height:`${Number(d.billed)/max*100}%`}} className="billed" title={`Facturado ${M(d.billed)}`}/><i style={{height:`${Number(d.collected)/max*100}%`}} className="collected" title={`Cobrado ${M(d.collected)}`}/></div><span>{d.month.slice(5)}</span></div>)}</div>;}
+function Reports(){
+ const[rev,setRev]=useState<Row|null>(null),[ar,setAr]=useState<Row|null>(null),[sup,setSup]=useState<Row|null>(null);
+ useEffect(()=>{api('/api/reports/revenue').then(setRev).catch(()=>{});api('/api/reports/ar').then(setAr).catch(()=>{});api('/api/support/metrics').then(setSup).catch(()=>{})},[]);
+ return <div className="reports-stack">
+  <section className="panel"><div className="panel-head"><div><span className="panel-kicker">FINANZAS</span><h2>Ingresos & cobros · últimos 6 meses</h2></div><a className="live-link" href="/api/reports/revenue?format=csv" target="_blank">CSV ↗</a></div>
+   {rev?<><div className="report-kpis"><div><span>Facturado</span><b>{M(rev.billed)}</b></div><div><span>Cobrado</span><b>{M(rev.collected)}</b></div><div><span>Collection rate</span><b>{rev.collectionRate!=null?`${rev.collectionRate}%`:'—'}</b></div><div><span>MRR</span><b>{M(rev.mrr)}</b></div><div><span>ARR</span><b>{M(rev.arr)}</b></div></div><div className="chart-legend"><span><i className="legend-line solid"/>Facturado</span><span><i className="legend-line faint"/>Cobrado</span></div><MiniBarChart data={rev.monthly||[]}/></>:<div className="live-empty small">Cargando…</div>}
+  </section>
+  <section className="panel"><div className="panel-head"><div><span className="panel-kicker">CUENTAS POR COBRAR</span><h2>Aging</h2></div><a className="live-link" href="/api/reports/ar?format=csv" target="_blank">CSV ↗</a></div>
+   {ar?<div style={{padding:'0 18px 18px'}}><div className="report-kpis"><div><span>Total por cobrar</span><b>{M(ar.total)}</b></div><div><span>DSO</span><b>{ar.dso!=null?`${ar.dso} días`:'—'}</b></div><div><span>Facturas abiertas</span><b>{ar.openInvoices}</b></div></div><AgingBars b={ar.buckets} total={ar.total}/></div>:<div className="live-empty small">Cargando…</div>}
+  </section>
+  {sup&&<section className="panel"><div className="panel-head"><div><span className="panel-kicker">SOPORTE · 90 DÍAS</span><h2>Calidad de servicio</h2></div></div><div className="report-kpis" style={{padding:'0 18px 18px'}}><div><span>Cumpl. 1ª resp.</span><b>{sup.firstResponseCompliance!=null?`${sup.firstResponseCompliance}%`:'—'}</b></div><div><span>Cumpl. resolución</span><b>{sup.resolutionCompliance!=null?`${sup.resolutionCompliance}%`:'—'}</b></div><div><span>1ª respuesta media</span><b>{HRS(sup.avgFirstResponseMinutes)}</b></div><div><span>Resolución media</span><b>{HRS(sup.avgResolutionMinutes)}</b></div><div><span>Sin facturar</span><b>{HRS(sup.unbilledMinutes)}</b></div></div></section>}
+ </div>;
+}
+function AgingBars({b,total}:{b:Row;total:number}){const seg=[['current','#2ed39a','Al día'],['1-30','#0d84dc','1–30'],['31-60','#f5b84b','31–60'],['61-90','#f5843b','61–90'],['90+','#ff627b','90+']] as const;return <div className="aging-bars">{seg.map(([k,c,l])=>{const v=Number(b?.[k]||0);const pct=total>0?(v/total*100):0;return <div key={k}><span>{l}</span><i><em style={{width:`${pct}%`,background:c}}/></i><b>{M(v)}</b></div>})}</div>;}
+function Payments({rows,user}:{rows:Row[];user:User}){
+ const[ar,setAr]=useState<Row|null>(null);
+ useEffect(()=>{api('/api/reports/ar').then(setAr).catch(()=>{})},[]);
+ const staff=user.role!=='CLIENT';
+ return <>
+  {ar&&<div className="collection-hero"><div><span className="panel-kicker">CUENTAS POR COBRAR</span><strong>{M(ar.total)}</strong><p>{ar.openInvoices} facturas abiertas{ar.dso!=null?` · DSO ${ar.dso} días`:''}</p></div><AgingBars b={ar.buckets} total={ar.total}/></div>}
+  {ar&&staff&&(ar.byClient||[]).length>0&&<section className="panel table-panel"><div className="panel-head"><div><span className="panel-kicker">SEGUIMIENTO</span><h2>Cobros prioritarios</h2></div><a className="live-link" href="/api/reports/ar?format=csv" target="_blank">Exportar CSV ↗</a></div><Table h={['Cliente','Por cobrar','Vencido','Vence más antigua','Facturas']}>{ar.byClient.map((c:Row)=><tr key={c.id}><td><b>{c.name}</b></td><td>{M(c.outstanding)}</td><td className={c.overdue>0?'money-due':''}>{M(c.overdue)}</td><td>{D(c.oldestDue)}</td><td>{c.invoices}</td></tr>)}</Table></section>}
+  <section className="panel table-panel"><div className="panel-head"><div><span className="panel-kicker">HISTORIAL</span><h2>Pagos recibidos</h2></div></div>{!rows.length?<div className="live-empty small">Sin pagos registrados.</div>:<Table h={['Fecha','Cliente','Factura','Método','Referencia','Monto']}>{rows.map(x=><tr key={x.id}><td>{D(x.paid_at)}</td><td>{x.client_name}</td><td>{x.invoice_number||'—'}</td><td><B v={x.method}/></td><td>{x.reference||'—'}</td><td><b>{M(x.amount)}</b></td></tr>)}</Table>}</section>
+ </>;
+}
 function Assets({rows}:{rows:Row[]}){if(!rows.length)return <Empty t="No hay activos"/>;return <Table h={['Activo','Cliente','Tipo','Renovación','Días','Precio','Facturación']}>{rows.map(x=><tr key={x.id}><td><b>{x.name}</b><small>{x.provider||'—'}</small></td><td>{x.client_name}</td><td><B v={x.type}/></td><td>{D(x.renewal_date)}</td><td className={Number(x.days_to_renewal)<=30?'money-due':''}>{x.days_to_renewal??'—'}</td><td>{M(x.recurring_price)}<small>{x.billing_cycle?.toLowerCase()}</small></td><td>{x.auto_invoice?<span className="live-badge accepted">AUTO · {D(x.next_invoice_date)}</span>:<span className="live-badge draft">Manual</span>}</td></tr>)}</Table>}
 function Notifications({rows,refresh}:{rows:Row[];refresh:()=>void}){if(!rows.length)return <Empty t="No hay notificaciones"/>;return <div className="panel live-list">{rows.map(x=><button key={x.id} className={x.status==='READ'?'read':''} onClick={async()=>{await api('/api/notifications',{method:'PATCH',body:JSON.stringify({id:x.id})});refresh()}}><div><b>{x.title}</b><p>{x.body}</p></div><B v={x.status}/></button>)}</div>}
 function Automations({rows}:{rows:Row[]}){if(!rows.length)return <Empty t="Sin reglas personalizadas. El cron diario ya procesa vencimientos, renovaciones y SLA."/>;return <div className="live-grid">{rows.map(x=><article className="panel live-card" key={x.id}><div><span className="eyebrow">{x.event}</span><B v={x.enabled?'ACTIVE':'INACTIVE'}/></div><h3>{x.name}</h3><p className="mono">{JSON.stringify(x.actions)}</p></article>)}</div>}

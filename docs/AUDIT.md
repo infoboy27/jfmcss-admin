@@ -121,7 +121,7 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 | Recurring services | ✅ v1 | an asset with `auto_invoice=true` is billed each cycle by `/api/cron/recurring` — idempotent via a unique `(asset_id, period_start)` invoice, real NCF, client email. |
 | Dominican billing / NCF / e-CF | Partial | Sequence allocation + NCF on issue + e-CF adapter stub + ✅ credit notes (E34/B04). No sequence-exhaustion alerts, no e-CF XML. |
 | Invoice / proposal / receipt PDFs | Partial | ✅ invoice + ✅ proposal + ✅ credit-note PDFs (shared template, dd/mm/yyyy). No receipt / statement templates. WinAnsi fonts. |
-| Payments / AR / aging | Partial | Payment registration + balance recompute. No aging report, no collections cadence, no receipt PDF. |
+| Payments / AR / aging | ✅ v1 | `/api/reports/ar` — aging buckets (current/1-30/31-60/61-90/90+), DSO, by-client prioritised list, CSV export; Cobros page shows it. No receipt PDF / automated dunning cadence yet. |
 | Support / Help Desk / SLA | ✅ v1 | first-response + resolution targets (config `sla_v2`), pausable clock (WAITING_CLIENT), 50/75/90/100 % alerts + escalation via `/api/cron/sla`, breach flags, dashboard (compliance %, avg times). No CSAT. |
 | Billable support → invoice | ✅ | `ticket_time_entries` + `/api/tickets/[id]/time`; `/api/support/unbilled` groups by client; `/api/support/invoice` rolls it into one invoice at the configured rate and stamps the entries (no double-billing). |
 | Assets / infrastructure | Partial | Asset CRUD + days-to-renewal. No secret-manager references, no dependency graph. |
@@ -130,7 +130,7 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 | Automation builder (WHEN/IF/DO) | **Missing** | `automation_rules` table exists; no engine, no UI. |
 | Documents | Partial | Upload/download/delete with auth. No S3 abstraction, no versioning, weak type validation. |
 | Client portal | Partial | `CLIENT` role sees scoped data. Needs its own shell, polish, and isolation tests. |
-| Reports | **Missing** | No module. |
+| Reports | 🔧 v1 | `/api/reports/revenue` (6-month billed vs collected, MRR/ARR, collection rate) + `/api/reports/ar` + support quality, all with CSV. Reportes page rebuilt. Missing: revenue-by-client, margin-by-project, sales cycle, renewals. |
 | Executive dashboard / Pulse / Next Best Action | **Missing** | Dashboard shows 8 KPIs; no prioritized action feed. |
 | Global search (Cmd-K) | **Missing** | Was only in the deleted mock. |
 | Security (MFA, rate limiting, headers, audit UI) | Partial | Headers + login rate limiting added here. No MFA, no audit UI. |
