@@ -29,10 +29,10 @@ export async function arAging(user: SessionUser) {
 
   const byClient = await query<any>(
     `SELECT c.id, c.name,
-            sum(i.total - i.paid_amount)                                              AS outstanding,
-            sum((i.total - i.paid_amount) FILTER (WHERE i.due_date < CURRENT_DATE))    AS overdue,
-            min(i.due_date) FILTER (WHERE i.due_date < CURRENT_DATE)                   AS oldest_due,
-            count(*)                                                                   AS invoices
+            sum(i.total - i.paid_amount)                                       AS outstanding,
+            sum(i.total - i.paid_amount) FILTER (WHERE i.due_date < CURRENT_DATE) AS overdue,
+            min(i.due_date) FILTER (WHERE i.due_date < CURRENT_DATE)            AS oldest_due,
+            count(*)                                                           AS invoices
        FROM invoices i JOIN clients c ON c.id = i.client_id
       ${s.where ? s.where + " AND" : "WHERE"} i.document_kind = 'INVOICE' AND i.status IN ${OPEN_STATUSES}
       GROUP BY c.id, c.name
