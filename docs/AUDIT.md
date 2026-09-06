@@ -132,7 +132,7 @@ Status legend: ✅ fixed in the ownership pass · 🔧 in progress · ⬜ open
 | Client portal | Partial | `CLIENT` role sees scoped data + own pulse/health. Still needs its own shell (not the admin workspace) and polish. |
 | Reports | 🔧 v1 | `/api/reports/revenue` (6-month billed vs collected, MRR/ARR, collection rate) + `/api/reports/ar` + support quality, all with CSV. Reportes page rebuilt. Missing: revenue-by-client, margin-by-project, sales cycle, renewals. |
 | Executive dashboard / Pulse / Next Best Action | ✅ v1 | `lib/pulse.ts` + `GET /api/pulse` — prioritised feed (overdue invoices, SLA risk, renewals ≤14d, stale proposals, late projects, at-risk clients) with RD$ at stake, sorted by (priority, impact); shown on the dashboard, each item jumps to its module. |
-| Global search (Cmd-K) | **Missing** | Was only in the deleted mock. |
+| Global search (⌘K) | ✅ | `GET /api/search` across clients, contacts, projects, invoices/credit-notes, tickets, proposals, assets (CLIENT-scoped); ⌘K palette in the workspace with arrow-key nav. Jumps to the module (per-record deep-link is a follow-up). |
 | Security (MFA, rate limiting, headers, audit UI) | Partial | Headers + login rate limiting added here. No MFA, no audit UI. |
 | Audit log | Partial | Written for most mutations; no filterable UI, no diff view. |
 | Migrations / backups / observability | **Missing** | See M11, H6. |
