@@ -4,7 +4,7 @@
 .pp-msg{text-align:center;color:#8b97ad;padding:60px 0}
 .pp-head{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:18px}
 .pp-brand{display:flex;gap:11px;align-items:center}
-.pp-logo{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(140deg,#173a93,#00a6d9);color:#fff;font-weight:800}
+.pp-logo{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(140deg,#173a93,#00a6d9);color:#fff;font-weight:800;font-size:16px;line-height:1;flex:none}
 .pp-brand>div{display:flex;flex-direction:column;line-height:1.2}
 .pp-brand b{font-size:14px;letter-spacing:.1em}
 .pp-brand span{font:500 7px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#66738e;margin-top:4px}
